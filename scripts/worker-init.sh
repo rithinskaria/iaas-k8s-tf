@@ -154,6 +154,15 @@ if [ -n "$JOIN_COMMAND" ]; then
     else
       echo "✗ ERROR: Azure cloud config is missing"
     fi
+    
+    # Wait for initial setup to complete, then restart kubelet to ensure all configs are applied
+    echo "=== Waiting for node initialization ==="
+    sleep 60
+    
+    echo "=== Restarting kubelet to apply all configurations ==="
+    systemctl restart kubelet
+    
+    echo "✓ Kubelet restarted successfully"
   else
     echo "ERROR: Failed to join cluster"
     exit 1

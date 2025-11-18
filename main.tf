@@ -70,9 +70,17 @@ module "k8s_identity" {
   depends_on = [module.resource_group]
 }
 
-resource "azurerm_role_assignment" "k8s_identity_network_contributor" {
+resource "azurerm_role_assignment" "k8s_identity_contributor" {
   scope                = module.resource_group.id
-  role_definition_name = "Network Contributor"
+  role_definition_name = "Contributor"
+  principal_id         = module.k8s_identity.principal_id
+
+  depends_on = [module.k8s_identity]
+}
+
+resource "azurerm_role_assignment" "k8s_identity_uac" {
+  scope                = module.resource_group.id
+  role_definition_name = "User Access Administrator"
   principal_id         = module.k8s_identity.principal_id
 
   depends_on = [module.k8s_identity]

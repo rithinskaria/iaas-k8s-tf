@@ -7,7 +7,7 @@ resource "azurerm_linux_virtual_machine_scale_set" "workers" {
   admin_username      = var.admin_username
   overprovision       = false
   single_placement_group = true
-  upgrade_mode        = "Manual"
+  upgrade_mode        = "Automatic"
   tags                = var.tags
 
   admin_ssh_key {

@@ -444,13 +444,8 @@ echo "Join command stored in Key Vault"
 echo "=== Azure Arc onboarding ==="
 az extension add --name connectedk8s --yes
 az extension add --name k8s-extension --yes
-
-az connectedk8s connect \
-  --name "${ARC_CLUSTER_NAME}" \
-  --resource-group "${RESOURCE_GROUP_NAME}" \
-  --location "${LOCATION}" \
-  --tags "environment=dev" \
-  --disable-auto-upgrade \
-  --custom-locations-oid "00000000-0000-0000-0000-000000000000" || echo "Arc onboarding will retry automatically"
+az login --identity
+az account set --subscription "$AZURE_SUBSCRIPTION_ID"
+az connectedk8s connect --name "${ARC_CLUSTER_NAME}" --resource-group "${RESOURCE_GROUP_NAME}" --location "${LOCATION}" --correlation-id "c18ab9d0-685e-48e7-ab55-12588447b0ed" 
 
 echo "=== Master setup complete ==="
