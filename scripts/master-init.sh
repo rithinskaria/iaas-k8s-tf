@@ -19,7 +19,13 @@ net.ipv4.ip_forward = 1
 EOF
 sysctl -p /etc/sysctl.d/k8s.conf
 
-# Install containerd
+# Install containerd from Docker's official repository
+echo "=== Installing containerd ==="
+apt-get update
+apt-get install -y ca-certificates curl gnupg lsb-release
+mkdir -p /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
 apt-get update
 apt-get install -y containerd
 mkdir -p /etc/containerd
@@ -62,6 +68,13 @@ kubeadm init \
   --apiserver-advertise-address=$CONTROL_PLANE_IP \
   --pod-network-cidr=10.244.0.0/16 \
   --service-cidr=10.96.0.0/12
+
+if [ $? -ne 0 ]; then
+  echo "ERROR: kubeadm init failed"
+  exit 1
+fi
+
+echo "✓ Kubernetes control plane initialized successfully"
 
 # Wait for control plane to stabilize
 echo "=== Waiting for control plane to stabilize ==="
@@ -436,6 +449,8 @@ az connectedk8s connect \
   --name "${ARC_CLUSTER_NAME}" \
   --resource-group "${RESOURCE_GROUP_NAME}" \
   --location "${LOCATION}" \
-  --tags "environment=dev" || echo "Arc onboarding will retry automatically"
+  --tags "environment=dev" \
+  --disable-auto-upgrade \
+  --custom-locations-oid "00000000-0000-0000-0000-000000000000" || echo "Arc onboarding will retry automatically"
 
 echo "=== Master setup complete ==="
