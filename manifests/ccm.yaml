@@ -44,6 +44,9 @@ rules:
 - apiGroups: [""]
   resources: ["secrets"]
   verbs: ["get", "list", "watch"]
+- apiGroups: ["discovery.k8s.io"]
+  resources: ["endpointslices"]
+  verbs: ["get", "list", "watch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -53,6 +56,20 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
   name: system:cloud-controller-manager
+subjects:
+- kind: ServiceAccount
+  name: cloud-controller-manager
+  namespace: kube-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: cloud-controller-manager:apiserver-authentication-reader
+  namespace: kube-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: extension-apiserver-authentication-reader
 subjects:
 - kind: ServiceAccount
   name: cloud-controller-manager
@@ -95,7 +112,7 @@ spec:
         image: mcr.microsoft.com/oss/kubernetes/azure-cloud-controller-manager:v1.34.2
         imagePullPolicy: IfNotPresent
         command:
-        - azure-cloud-controller-manager
+        - cloud-controller-manager
         - --cloud-provider=azure
         - --cluster-name=kubernetes
         - --controllers=*,-cloud-node

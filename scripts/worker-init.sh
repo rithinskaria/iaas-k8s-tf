@@ -57,6 +57,44 @@ echo "IP forwarding verified: enabled"
 # No CNI installation needed - kubenet is built into Kubernetes
 echo "=== Using kubenet for pod networking ==="
 
+# Install Azure CLI
+echo "=== Installing Azure CLI ==="
+curl -sL https://aka.ms/InstallAzureCLIDeb | bash
+
+# Login to Azure using managed identity
+echo "=== Logging in to Azure ==="
+az login --identity
+
+# Get Azure subscription and tenant information
+echo "=== Getting Azure subscription information ==="
+AZURE_TENANT_ID=$(az account show --query tenantId -o tsv)
+AZURE_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+
+# Create Azure cloud config for worker node
+echo "=== Creating Azure cloud config ==="
+mkdir -p /etc/kubernetes
+cat > /etc/kubernetes/azure.json <<EOFAZURE
+{
+  "cloud": "AzurePublicCloud",
+  "tenantId": "$AZURE_TENANT_ID",
+  "subscriptionId": "$AZURE_SUBSCRIPTION_ID",
+  "resourceGroup": "${RESOURCE_GROUP_NAME}",
+  "location": "${LOCATION}",
+  "vmType": "${VM_TYPE}",
+  "vnetName": "${VNET_NAME}",
+  "vnetResourceGroup": "${RESOURCE_GROUP_NAME}",
+  "subnetName": "${SUBNET_NAME}",
+  "securityGroupName": "${NSG_NAME}",
+  "useManagedIdentityExtension": true,
+  "userAssignedIdentityID": "${MI_CLIENT_ID}",
+  "useInstanceMetadata": true,
+  "loadBalancerSku": "Standard",
+  "maximumLoadBalancerRuleCount": 250,
+  "excludeMasterFromStandardLB": true
+}
+EOFAZURE
+chmod 644 /etc/kubernetes/azure.json
+
 # Retrieve join command from Azure Key Vault
 echo "=== Fetching kubeadm join command from Key Vault ==="
 JOIN_COMMAND=""

@@ -9,16 +9,31 @@ resource "random_string" "kv_suffix" {
 locals {
   key_vault_name = "${var.key_vault_base_name}-${random_string.kv_suffix.result}"
   
+  # Determine VM type based on worker count
+  vm_type = var.worker_node_count > 0 ? "vmss" : "standard"
+  
   # Load initialization scripts from external files
   master_init_script = templatefile("${path.module}/scripts/master-init.sh", {
     KEY_VAULT_NAME      = local.key_vault_name
     RESOURCE_GROUP_NAME = var.resource_group_name
     ARC_CLUSTER_NAME    = var.arc_cluster_name
     LOCATION            = var.location
+    VM_TYPE             = local.vm_type
+    VNET_NAME           = var.vnet_name
+    SUBNET_NAME         = var.k8s_subnet_name
+    NSG_NAME            = "nsg-k8s-subnet"
+    MI_CLIENT_ID        = module.k8s_identity.client_id
   })
   
   worker_init_script = templatefile("${path.module}/scripts/worker-init.sh", {
-    KEY_VAULT_NAME = local.key_vault_name
+    KEY_VAULT_NAME      = local.key_vault_name
+    RESOURCE_GROUP_NAME = var.resource_group_name
+    LOCATION            = var.location
+    VM_TYPE             = local.vm_type
+    VNET_NAME           = var.vnet_name
+    SUBNET_NAME         = var.k8s_subnet_name
+    NSG_NAME            = "nsg-k8s-subnet"
+    MI_CLIENT_ID        = module.k8s_identity.client_id
   })
 }
 
@@ -40,6 +55,14 @@ module "k8s_identity" {
   tags                = var.tags
 
   depends_on = [module.resource_group]
+}
+
+resource "azurerm_role_assignment" "k8s_identity_network_contributor" {
+  scope                = module.resource_group.id
+  role_definition_name = "Network Contributor"
+  principal_id         = module.k8s_identity.principal_id
+
+  depends_on = [module.k8s_identity]
 }
 
 module "vnet" {

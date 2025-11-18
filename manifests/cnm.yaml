@@ -70,7 +70,7 @@ spec:
         image: mcr.microsoft.com/oss/kubernetes/azure-cloud-node-manager:v1.34.2
         imagePullPolicy: IfNotPresent
         command:
-        - azure-cloud-node-manager
+        - cloud-node-manager
         - --node-name=$(NODE_NAME)
         - --wait-routes=false
         - --v=2

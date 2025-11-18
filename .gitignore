@@ -51,3 +51,6 @@ k8s-azure-key.pub
 *.swp
 *.swo
 *~
+
+*.backup
+*.bak
