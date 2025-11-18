@@ -1,3 +1,4 @@
+---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -5,7 +6,47 @@ metadata:
   namespace: kube-system
 ---
 apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: system:cloud-controller-manager
+  annotations:
+    rbac.authorization.kubernetes.io/autoupdate: "true"
+  labels:
+    k8s-app: cloud-controller-manager
+rules:
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create", "patch", "update"]
+- apiGroups: [""]
+  resources: ["nodes"]
+  verbs: ["*"]
+- apiGroups: [""]
+  resources: ["nodes/status"]
+  verbs: ["patch"]
+- apiGroups: [""]
+  resources: ["services"]
+  verbs: ["list", "patch", "update", "watch"]
+- apiGroups: [""]
+  resources: ["services/status"]
+  verbs: ["patch"]
+- apiGroups: [""]
+  resources: ["serviceaccounts"]
+  verbs: ["create", "get", "list", "watch", "update"]
+- apiGroups: [""]
+  resources: ["persistentvolumes"]
+  verbs: ["get", "list", "watch", "update"]
+- apiGroups: [""]
+  resources: ["endpoints"]
+  verbs: ["create", "get", "list", "watch", "update"]
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["coordination.k8s.io"]
+  resources: ["leases"]
+  verbs: ["get", "create", "update"]
+---
 kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: system:cloud-controller-manager
 roleRef:
@@ -20,39 +61,62 @@ subjects:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: azure-cloud-controller-manager
+  name: cloud-controller-manager
   namespace: kube-system
+  labels:
+    component: cloud-controller-manager
 spec:
   replicas: 1
   selector:
     matchLabels:
-      k8s-app: azure-cloud-controller-manager
+      component: cloud-controller-manager
   template:
     metadata:
       labels:
-        k8s-app: azure-cloud-controller-manager
+        component: cloud-controller-manager
     spec:
       serviceAccountName: cloud-controller-manager
+      priorityClassName: system-node-critical
       hostNetwork: true
+      nodeSelector:
+        node-role.kubernetes.io/control-plane: ""
       tolerations:
-      - key: "node-role.kubernetes.io/control-plane"
-        operator: "Exists"
-        effect: "NoSchedule"
+      - key: node-role.kubernetes.io/control-plane
+        effect: NoSchedule
+      - key: node-role.kubernetes.io/master
+        effect: NoSchedule
+      - key: node.cloudprovider.kubernetes.io/uninitialized
+        value: "true"
+        effect: NoSchedule
+      - key: node.kubernetes.io/not-ready
+        effect: NoSchedule
       containers:
-      - name: azure-cloud-controller-manager
-        image: mcr.microsoft.com/oss/kubernetes/azure-cloud-controller-manager:v1.<your-minor>.x
+      - name: cloud-controller-manager
+        image: mcr.microsoft.com/oss/kubernetes/azure-cloud-controller-manager:v1.30.7
+        imagePullPolicy: IfNotPresent
         command:
-        - /azure-cloud-controller-manager
+        - /usr/local/bin/azure-cloud-controller-manager
+        - --allocate-node-cidrs=false
+        - --cloud-config=/etc/kubernetes/azure.json
         - --cloud-provider=azure
-        - --cloud-config=/etc/kubernetes/cloud-config/azure.json
-        - --leader-elect=true
+        - --cluster-name=kubernetes
         - --controllers=*,-cloud-node
+        - --configure-cloud-routes=false
+        - --leader-elect=true
+        - --route-reconciliation-period=10s
         - --v=2
         volumeMounts:
+        - name: etc-kubernetes
+          mountPath: /etc/kubernetes
+          readOnly: true
         - name: cloud-config
-          mountPath: /etc/kubernetes/cloud-config
+          mountPath: /etc/kubernetes/azure.json
+          subPath: cloud-config
           readOnly: true
       volumes:
+      - name: etc-kubernetes
+        hostPath:
+          path: /etc/kubernetes
       - name: cloud-config
         secret:
           secretName: azure-cloud-config
