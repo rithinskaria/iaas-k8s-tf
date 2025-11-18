@@ -28,25 +28,25 @@ rules:
   verbs: ["list", "patch", "update", "watch"]
 - apiGroups: [""]
   resources: ["services/status"]
-  verbs: ["patch"]
+  verbs: ["list", "patch", "update", "watch"]
 - apiGroups: [""]
   resources: ["serviceaccounts"]
-  verbs: ["create", "get", "list", "watch", "update"]
+  verbs: ["create", "get"]
 - apiGroups: [""]
   resources: ["persistentvolumes"]
-  verbs: ["get", "list", "watch", "update"]
+  verbs: ["get", "list", "update", "watch"]
 - apiGroups: [""]
   resources: ["endpoints"]
   verbs: ["create", "get", "list", "watch", "update"]
-- apiGroups: [""]
-  resources: ["secrets"]
-  verbs: ["get", "list", "watch"]
 - apiGroups: ["coordination.k8s.io"]
   resources: ["leases"]
   verbs: ["get", "create", "update"]
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "list", "watch"]
 ---
-kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
 metadata:
   name: system:cloud-controller-manager
 roleRef:
@@ -92,16 +92,16 @@ spec:
         effect: NoSchedule
       containers:
       - name: cloud-controller-manager
-        image: mcr.microsoft.com/oss/kubernetes/azure-cloud-controller-manager:v1.30.7
+        image: mcr.microsoft.com/oss/kubernetes/azure-cloud-controller-manager:v1.34.2
         imagePullPolicy: IfNotPresent
         command:
-        - /usr/local/bin/azure-cloud-controller-manager
-        - --allocate-node-cidrs=false
-        - --cloud-config=/etc/kubernetes/azure.json
+        - azure-cloud-controller-manager
         - --cloud-provider=azure
         - --cluster-name=kubernetes
         - --controllers=*,-cloud-node
+        - --cloud-config=/etc/kubernetes/azure.json
         - --configure-cloud-routes=false
+        - --allocate-node-cidrs=false
         - --leader-elect=true
         - --route-reconciliation-period=10s
         - --v=2
@@ -117,6 +117,7 @@ spec:
       - name: etc-kubernetes
         hostPath:
           path: /etc/kubernetes
+          type: DirectoryOrCreate
       - name: cloud-config
         secret:
           secretName: azure-cloud-config
