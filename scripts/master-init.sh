@@ -11,13 +11,13 @@ modprobe br_netfilter
 echo "br_netfilter" | tee -a /etc/modules-load.d/containerd.conf
 echo "overlay" | tee -a /etc/modules-load.d/containerd.conf
 
-# Configure sysctl
+# Configure sysctl (only parameters that work in Azure VMs)
 cat <<EOF | tee /etc/sysctl.d/k8s.conf
 net.bridge.bridge-nf-call-iptables = 1
 net.bridge.bridge-nf-call-ip6tables = 1
 net.ipv4.ip_forward = 1
 EOF
-sysctl --system
+sysctl -p /etc/sysctl.d/k8s.conf
 
 # Install containerd
 apt-get update
@@ -25,6 +25,7 @@ apt-get install -y containerd
 mkdir -p /etc/containerd
 containerd config default | tee /etc/containerd/config.toml
 sed -i 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml
+sed -i 's|sandbox_image = "registry.k8s.io/pause:.*"|sandbox_image = "registry.k8s.io/pause:3.10.1"|' /etc/containerd/config.toml
 systemctl restart containerd
 systemctl enable containerd
 
@@ -62,6 +63,10 @@ kubeadm init \
   --pod-network-cidr=10.244.0.0/16 \
   --service-cidr=10.96.0.0/12
 
+# Wait for control plane to stabilize
+echo "=== Waiting for control plane to stabilize ==="
+sleep 60
+
 # Configure kubeconfig for root
 mkdir -p /root/.kube
 cp -i /etc/kubernetes/admin.conf /root/.kube/config
@@ -98,10 +103,6 @@ spec: {}
 EOFCALICO
 
 kubectl wait --for=condition=ready pod -l k8s-app=calico-node -n calico-system --timeout=300s || echo "Calico not ready yet"
-
-echo "=== Removing taints ==="
-kubectl taint nodes --all node-role.kubernetes.io/control-plane:NoSchedule- || true
-kubectl taint nodes --all node-role.kubernetes.io/master:NoSchedule- || true
 
 kubectl wait --for=condition=ready pod -l k8s-app=kube-dns -n kube-system --timeout=300s || echo "CoreDNS not ready yet"
 

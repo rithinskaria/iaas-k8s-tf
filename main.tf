@@ -1,5 +1,10 @@
 data "azurerm_client_config" "current" {}
 
+
+resource "azurerm_resource_provider_registration" "kubernetes" {
+  name = "Microsoft.Kubernetes"
+}
+
 resource "random_string" "kv_suffix" {
   length  = 5
   special = false
@@ -60,6 +65,14 @@ module "k8s_identity" {
 resource "azurerm_role_assignment" "k8s_identity_network_contributor" {
   scope                = module.resource_group.id
   role_definition_name = "Network Contributor"
+  principal_id         = module.k8s_identity.principal_id
+
+  depends_on = [module.k8s_identity]
+}
+
+resource "azurerm_role_assignment" "k8s_identity_arc_onboarding" {
+  scope                = module.resource_group.id
+  role_definition_name = "Kubernetes Cluster - Azure Arc Onboarding"
   principal_id         = module.k8s_identity.principal_id
 
   depends_on = [module.k8s_identity]
