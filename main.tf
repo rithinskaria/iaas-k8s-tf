@@ -29,7 +29,7 @@ locals {
     NSG_NAME            = "nsg-k8s-subnet"
     MI_CLIENT_ID        = module.k8s_identity.client_id
   })
-  
+
   worker_init_script = templatefile("${path.module}/scripts/worker-init.sh", {
     KEY_VAULT_NAME      = local.key_vault_name
     RESOURCE_GROUP_NAME = var.resource_group_name

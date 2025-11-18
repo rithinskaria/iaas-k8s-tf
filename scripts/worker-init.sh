@@ -1,24 +1,5 @@
 #!/bin/bash
 
-set -euo pipefail
-
-log() { echo "[$(date -Is)] $*"; }
-
-retry() {
-  local max_attempts=$1; shift
-  local sleep_seconds=$1; shift
-  local attempt=1
-  until "$@"; do
-    if [ "$attempt" -ge "$max_attempts" ]; then
-      log "ERROR: Command failed after ${attempt} attempts: $*"
-      return 1
-    fi
-    log "WARN: Command failed (attempt ${attempt}/${max_attempts}), retrying in ${sleep_seconds}s..."
-    sleep "${sleep_seconds}"
-    attempt=$((attempt+1))
-  done
-}
-
 # Disable swap
 swapoff -a
 sed -i '/swap/d' /etc/fstab
@@ -76,20 +57,20 @@ fi
 echo "IP forwarding verified: enabled"
 
 # Install Azure CLI first to retrieve join command and create cloud config
-log "=== Installing Azure CLI ==="
+echo "=== Installing Azure CLI ==="
 curl -sL https://aka.ms/InstallAzureCLIDeb | bash
 
-# Login to Azure using managed identity with retries
-log "=== Logging in to Azure with managed identity ==="
-retry 10 15 az login --identity --allow-no-subscriptions
+# Login to Azure using managed identity
+echo "=== Logging in to Azure ==="
+az login --identity
 
-# Get Azure subscription and tenant information with retries
-log "=== Getting Azure subscription information ==="
-AZURE_TENANT_ID=$(retry 10 10 az account show --query tenantId -o tsv)
-AZURE_SUBSCRIPTION_ID=$(retry 10 10 az account show --query id -o tsv)
+# Get Azure subscription and tenant information
+echo "=== Getting Azure subscription information ==="
+AZURE_TENANT_ID=$(az account show --query tenantId -o tsv)
+AZURE_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
 
 # Create Azure cloud config for worker node BEFORE joining cluster
-log "=== Creating Azure cloud config ==="
+echo "=== Creating Azure cloud config ==="
 mkdir -p /etc/kubernetes
 cat > /etc/kubernetes/azure.json <<EOFAZURE
 {
@@ -113,93 +94,65 @@ cat > /etc/kubernetes/azure.json <<EOFAZURE
 EOFAZURE
 chmod 644 /etc/kubernetes/azure.json
 
-log "=== Azure cloud config created successfully ==="
+echo "=== Azure cloud config created successfully ==="
 ls -la /etc/kubernetes/azure.json
 
 # Configure kubelet to use external cloud provider
-log "=== Configuring kubelet for external cloud provider ==="
+echo "=== Configuring kubelet for external cloud provider ==="
 mkdir -p /etc/default
 cat > /etc/default/kubelet <<EOFKUBELET
 KUBELET_EXTRA_ARGS="--cloud-provider=external"
 EOFKUBELET
 
-# Retrieve join command from Azure Key Vault with extended retries
-log "=== Fetching kubeadm join command from Key Vault ==="
+# Retrieve join command from Azure Key Vault
+echo "=== Fetching kubeadm join command from Key Vault ==="
 JOIN_COMMAND=""
-MAX_RETRIES=40
-RETRY_DELAY=15
-
-for ((i=1; i<=MAX_RETRIES; i++)); do
-  set +e
-  JOIN_COMMAND=$(az keyvault secret show \
-    --vault-name "${KEY_VAULT_NAME}" \
-    --name "kubeadm-join-command" \
-    --query value -o tsv 2>/dev/null)
-  status=$?
-  set -e
-  if [ "$status" -eq 0 ] && [ -n "$JOIN_COMMAND" ]; then
-    log "Join command retrieved successfully (attempt ${i}/${MAX_RETRIES})"
+MAX_RETRIES=20
+RETRY_COUNT=0
+while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+  JOIN_COMMAND=$(az keyvault secret show --vault-name ${KEY_VAULT_NAME} --name "kubeadm-join-command" --query value -o tsv 2>/dev/null)
+  if [ -n "$JOIN_COMMAND" ]; then
+    echo "Join command retrieved successfully"
     break
   fi
-  log "Join command not available yet (attempt ${i}/${MAX_RETRIES}); sleeping ${RETRY_DELAY}s..."
-  sleep "${RETRY_DELAY}"
+  echo "Failed to retrieve join command (attempt $((RETRY_COUNT+1))/$MAX_RETRIES). Retrying in 15 seconds..."
+  sleep 15
+  RETRY_COUNT=$((RETRY_COUNT+1))
 done
 
-if [ -z "$JOIN_COMMAND" ]; then
-  log "ERROR: Could not retrieve join command from Key Vault after ${MAX_RETRIES} attempts"
+if [ -n "$JOIN_COMMAND" ]; then
+  
+  echo "Executing join command..."
+  $JOIN_COMMAND
+  sleep 30  
+  if [ $? -eq 0 ]; then
+    echo "Successfully joined the cluster"
+    
+    # Verify kubelet is running with cloud provider
+    echo "=== Verifying kubelet configuration ==="
+    sleep 10
+    systemctl status kubelet --no-pager || true
+    
+    # Check if kubelet is using external cloud provider
+    if ps aux | grep kubelet | grep -q "cloud-provider=external"; then
+      echo "✓ Kubelet is configured with external cloud provider"
+    else
+      echo "⚠ Warning: Kubelet may not be using external cloud provider"
+    fi
+    
+    # Verify azure.json is accessible
+    if [ -f /etc/kubernetes/azure.json ]; then
+      echo "✓ Azure cloud config is present"
+    else
+      echo "✗ ERROR: Azure cloud config is missing"
+    fi
+  else
+    echo "ERROR: Failed to join cluster"
+    exit 1
+  fi
+else
+  echo "ERROR: Could not retrieve join command from Key Vault after $MAX_RETRIES attempts"
   exit 1
 fi
 
-# Check if node is already joined to avoid re-joining
-log "=== Checking if node is already joined ==="
-if [ -f /etc/kubernetes/kubelet.conf ]; then
-  log "Node already appears joined (kubelet.conf present); skipping join."
-else
-  log "Waiting 30s before executing join command to allow master to be ready..."
-  sleep 30
-  
-  log "Executing join command..."
-  eval "$JOIN_COMMAND"
-  
-  if [ $? -eq 0 ]; then
-    log "Successfully joined the cluster"
-  else
-    log "ERROR: Failed to join cluster"
-    exit 1
-  fi
-fi
-
-# Verify kubelet is running and healthy
-log "=== Verifying kubelet is running and healthy ==="
-for i in {1..20}; do
-  set +e
-  systemctl is-active --quiet kubelet
-  status=$?
-  set -e
-  if [ "$status" -eq 0 ]; then
-    log "kubelet is active"
-    break
-  fi
-  log "kubelet not active yet (attempt ${i}/20); sleeping 10s..."
-  sleep 10
-done
-
-log "=== Kubelet status ==="
-systemctl status kubelet --no-pager || true
-
-# Check if kubelet is using external cloud provider
-log "=== Verifying kubelet cloud provider configuration ==="
-if ps aux | grep kubelet | grep -q "cloud-provider=external"; then
-  log "✓ Kubelet is configured with external cloud provider"
-else
-  log "⚠ Warning: Kubelet may not be using external cloud provider"
-fi
-
-# Verify azure.json is accessible
-if [ -f /etc/kubernetes/azure.json ]; then
-  log "✓ Azure cloud config is present"
-else
-  log "✗ ERROR: Azure cloud config is missing"
-fi
-
-log "=== Worker node setup completed ==="
+echo "=== Worker node setup completed ==="
