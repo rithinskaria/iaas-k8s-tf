@@ -182,9 +182,6 @@ EOFKUBELET
 systemctl daemon-reload
 systemctl restart kubelet
 
-# Patch kube-apiserver
-sed -i '/- kube-apiserver/a\    - --cloud-provider=external' /etc/kubernetes/manifests/kube-apiserver.yaml
-
 # Patch kube-controller-manager
 sed -i '/- kube-controller-manager/a\    - --cloud-provider=external' /etc/kubernetes/manifests/kube-controller-manager.yaml
 
