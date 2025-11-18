@@ -55,21 +55,47 @@ if [ "$IP_FORWARD" != "1" ]; then
 fi
 echo "IP forwarding verified: enabled"
 
-# Initialize control plane with kubenet (pod CIDR for overlay network)
-echo "=== Initializing Kubernetes control plane with kubenet ==="
-kubeadm init --apiserver-advertise-address=$CONTROL_PLANE_IP --service-dns-domain=cluster.local --pod-network-cidr=10.244.0.0/16
+# Create kubeadm config with external cloud provider
+echo "=== Creating kubeadm configuration ==="
+cat <<EOFKUBEADM > /tmp/kubeadm-config.yaml
+apiVersion: kubeadm.k8s.io/v1beta4
+kind: InitConfiguration
+nodeRegistration:
+  kubeletExtraArgs:
+    cloud-provider: "external"
+---
+apiVersion: kubeadm.k8s.io/v1beta4
+kind: ClusterConfiguration
+networking:
+  podSubnet: "10.244.0.0/16"
+  serviceSubnet: "10.96.0.0/12"
+  dnsDomain: "cluster.local"
+apiServer:
+  extraArgs:
+    cloud-provider: "external"
+controllerManager:
+  extraArgs:
+    cloud-provider: "external"
+EOFKUBEADM
+
+# Initialize control plane
+echo "=== Initializing Kubernetes control plane ==="
+kubeadm init --config=/tmp/kubeadm-config.yaml --apiserver-advertise-address=$CONTROL_PLANE_IP
+
+# Configure kubeconfig for root
+mkdir -p /root/.kube
+cp -i /etc/kubernetes/admin.conf /root/.kube/config
+export KUBECONFIG=/root/.kube/config
 
 # Configure kubeconfig for azureuser
 mkdir -p /home/azureuser/.kube
 cp -i /etc/kubernetes/admin.conf /home/azureuser/.kube/config
 chown azureuser:azureuser /home/azureuser/.kube/config
-export KUBECONFIG=/home/azureuser/.kube/config
 
-echo "=== Installing Calico CNI for network policy ==="
+echo "=== Installing Calico CNI ==="
 kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.28.0/manifests/tigera-operator.yaml
 sleep 10
 
-# Create Calico custom resources with matching pod CIDR
 cat <<EOFCALICO | kubectl apply -f -
 apiVersion: operator.tigera.io/v1
 kind: Installation
@@ -91,17 +117,14 @@ metadata:
 spec: {}
 EOFCALICO
 
-echo "=== Waiting for Calico to be ready ==="
-kubectl wait --for=condition=ready pod -l k8s-app=calico-node -n calico-system --timeout=300s || echo "Calico not ready yet, continuing..."
+kubectl wait --for=condition=ready pod -l k8s-app=calico-node -n calico-system --timeout=300s || echo "Calico not ready yet"
 
-echo "=== Removing taint from master node to allow pod scheduling ==="
-kubectl taint nodes --all node-role.kubernetes.io/control-plane:NoSchedule- || echo "Taint already removed or not present"
-kubectl taint nodes --all node-role.kubernetes.io/master:NoSchedule- || echo "Master taint already removed or not present"
+echo "=== Removing taints ==="
+kubectl taint nodes --all node-role.kubernetes.io/control-plane:NoSchedule- || true
+kubectl taint nodes --all node-role.kubernetes.io/master:NoSchedule- || true
 
-echo "=== Waiting for CoreDNS to be ready ==="
-kubectl wait --for=condition=ready pod -l k8s-app=kube-dns -n kube-system --timeout=300s || echo "CoreDNS not ready yet, continuing..."
+kubectl wait --for=condition=ready pod -l k8s-app=kube-dns -n kube-system --timeout=300s || echo "CoreDNS not ready yet"
 
-echo "=== Configuring CoreDNS to forward to Azure DNS ==="
 cat <<'EOFCOREDNS' | kubectl apply -f -
 apiVersion: v1
 kind: ConfigMap
@@ -133,21 +156,14 @@ EOFCOREDNS
 kubectl rollout restart deployment coredns -n kube-system
 kubectl rollout status deployment coredns -n kube-system --timeout=120s
 
-# Install Azure CLI
 echo "=== Installing Azure CLI ==="
 curl -sL https://aka.ms/InstallAzureCLIDeb | bash
-
-# Login to Azure using managed identity
-echo "=== Logging in to Azure ==="
 az login --identity
 
-# Get Azure subscription and tenant information
-echo "=== Getting Azure subscription information ==="
 AZURE_TENANT_ID=$(az account show --query tenantId -o tsv)
 AZURE_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
 
-# Create Azure cloud config
-echo "=== Creating Azure cloud config ==="
+echo "=== Creating azure.json ==="
 mkdir -p /etc/kubernetes
 cat > /etc/kubernetes/azure.json <<EOFAZURE
 {
@@ -171,16 +187,12 @@ cat > /etc/kubernetes/azure.json <<EOFAZURE
 EOFAZURE
 chmod 644 /etc/kubernetes/azure.json
 
-# Create Kubernetes secret for Azure cloud config
-echo "=== Creating Kubernetes secret for Azure cloud config ==="
-kubectl --kubeconfig=/etc/kubernetes/admin.conf create secret generic azure-cloud-config \
-  --from-file=cloud-config=/etc/kubernetes/azure.json \
+kubectl create secret generic azure-cloud-provider \
+  --from-literal=cloud-config="$(cat /etc/kubernetes/azure.json)" \
   -n kube-system
 
-# Create Azure Cloud Controller Manager manifest
-echo "=== Creating Azure Cloud Controller Manager manifest ==="
-cat > /tmp/ccm.yaml <<'EOFCCM'
----
+echo "=== Deploying CCM ==="
+kubectl apply -f - <<'EOFCCM'
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -191,10 +203,6 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: system:cloud-controller-manager
-  annotations:
-    rbac.authorization.kubernetes.io/autoupdate: "true"
-  labels:
-    k8s-app: cloud-controller-manager
 rules:
 - apiGroups: [""]
   resources: ["events"]
@@ -210,13 +218,16 @@ rules:
   verbs: ["list", "patch", "update", "watch"]
 - apiGroups: [""]
   resources: ["services/status"]
-  verbs: ["list", "patch", "update", "watch"]
+  verbs: ["patch"]
 - apiGroups: [""]
   resources: ["serviceaccounts"]
-  verbs: ["create", "get"]
+  verbs: ["create", "get", "list", "watch"]
 - apiGroups: [""]
   resources: ["persistentvolumes"]
   verbs: ["get", "list", "update", "watch"]
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "list", "watch"]
 - apiGroups: [""]
   resources: ["endpoints"]
   verbs: ["create", "get", "list", "watch", "update"]
@@ -262,8 +273,6 @@ kind: Deployment
 metadata:
   name: cloud-controller-manager
   namespace: kube-system
-  labels:
-    component: cloud-controller-manager
 spec:
   replicas: 1
   selector:
@@ -275,35 +284,36 @@ spec:
         component: cloud-controller-manager
     spec:
       serviceAccountName: cloud-controller-manager
-      priorityClassName: system-node-critical
       hostNetwork: true
+      priorityClassName: system-node-critical
       nodeSelector:
         node-role.kubernetes.io/control-plane: ""
       tolerations:
-      - key: node-role.kubernetes.io/control-plane
-        effect: NoSchedule
+      - key: CriticalAddonsOnly
+        operator: Exists
       - key: node-role.kubernetes.io/master
+        effect: NoSchedule
+      - key: node-role.kubernetes.io/control-plane
         effect: NoSchedule
       - key: node.cloudprovider.kubernetes.io/uninitialized
         value: "true"
         effect: NoSchedule
-      - key: node.kubernetes.io/not-ready
-        effect: NoSchedule
       containers:
       - name: cloud-controller-manager
         image: mcr.microsoft.com/oss/kubernetes/azure-cloud-controller-manager:v1.34.2
-        imagePullPolicy: IfNotPresent
         command:
         - cloud-controller-manager
+        - --allocate-node-cidrs=false
+        - --cloud-config=/etc/kubernetes/azure.json
         - --cloud-provider=azure
         - --cluster-name=kubernetes
-        - --controllers=*,-cloud-node
-        - --cloud-config=/etc/kubernetes/azure.json
         - --configure-cloud-routes=false
-        - --allocate-node-cidrs=false
+        - --controllers=*,-cloud-node
         - --leader-elect=true
-        - --route-reconciliation-period=10s
         - --v=2
+        env:
+        - name: AZURE_CREDENTIAL_FILE
+          value: /etc/kubernetes/azure.json
         volumeMounts:
         - name: etc-kubernetes
           mountPath: /etc/kubernetes
@@ -316,20 +326,13 @@ spec:
       - name: etc-kubernetes
         hostPath:
           path: /etc/kubernetes
-          type: DirectoryOrCreate
       - name: cloud-config
         secret:
-          secretName: azure-cloud-config
+          secretName: azure-cloud-provider
 EOFCCM
 
-# Deploy Azure Cloud Controller Manager
-echo "=== Deploying Azure Cloud Controller Manager ==="
-kubectl apply -f /tmp/ccm.yaml
-
-# Create Azure Cloud Node Manager manifest
-echo "=== Creating Azure Cloud Node Manager manifest ==="
-cat > /tmp/cnm.yaml <<'EOFCNM'
----
+echo "=== Deploying CNM ==="
+kubectl apply -f - <<'EOFCNM'
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -340,8 +343,6 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: cloud-node-manager
-  labels:
-    k8s-app: cloud-node-manager
 rules:
 - apiGroups: [""]
   resources: ["nodes"]
@@ -368,8 +369,6 @@ kind: DaemonSet
 metadata:
   name: cloud-node-manager
   namespace: kube-system
-  labels:
-    component: cloud-node-manager
 spec:
   selector:
     matchLabels:
@@ -399,7 +398,6 @@ spec:
       containers:
       - name: cloud-node-manager
         image: mcr.microsoft.com/oss/kubernetes/azure-cloud-node-manager:v1.34.2
-        imagePullPolicy: IfNotPresent
         command:
         - cloud-node-manager
         - --node-name=$(NODE_NAME)
@@ -410,82 +408,72 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: spec.nodeName
+        - name: AZURE_CREDENTIAL_FILE
+          value: /etc/kubernetes/azure.json
         volumeMounts:
-        - name: cloud-config
-          mountPath: /etc/kubernetes/azure.json
-          subPath: cloud-config
+        - name: etc-kubernetes
+          mountPath: /etc/kubernetes
           readOnly: true
       volumes:
-      - name: cloud-config
-        secret:
-          secretName: azure-cloud-config
+      - name: etc-kubernetes
+        hostPath:
+          path: /etc/kubernetes
 EOFCNM
 
-# Deploy Azure Cloud Node Manager
-echo "=== Deploying Azure Cloud Node Manager ==="
-kubectl apply -f /tmp/cnm.yaml
+echo "=== Waiting for CCM and CNM to be ready ==="
+kubectl wait --for=condition=ready pod -l component=cloud-controller-manager -n kube-system --timeout=300s || echo "CCM not ready, checking status..."
+kubectl wait --for=condition=ready pod -l k8s-app=cloud-node-manager -n kube-system --timeout=300s || echo "CNM not ready, checking status..."
 
-# Wait for cloud controllers to be ready
-echo "=== Waiting for cloud controllers to be ready ==="
-kubectl wait --for=condition=ready pod -l component=cloud-controller-manager -n kube-system --timeout=180s || echo "CCM not ready yet, continuing..."
-kubectl wait --for=condition=ready pod -l k8s-app=cloud-node-manager -n kube-system --timeout=180s || echo "CNM not ready yet, continuing..."
+# Verify CCM/CNM are running
+echo "=== Verifying CCM deployment ==="
+kubectl get deployment cloud-controller-manager -n kube-system
+kubectl get pods -l component=cloud-controller-manager -n kube-system
 
-# Wait for Key Vault permissions
-echo "=== Waiting for Key Vault permissions ==="
-sleep 30
+echo "=== Verifying CNM deployment ==="
+kubectl get daemonset cloud-node-manager -n kube-system
+kubectl get pods -l k8s-app=cloud-node-manager -n kube-system
 
-# Store join command in Key Vault
-echo "=== Storing join command in Key Vault ==="
-JOIN_COMMAND=$(kubeadm token create --print-join-command)
-MAX_RETRIES=5
+# Wait for nodes to be ready with cloud provider labels
+echo "=== Waiting for nodes to get cloud provider labels ==="
 RETRY_COUNT=0
-while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-  if az keyvault secret set --vault-name ${KEY_VAULT_NAME} --name "kubeadm-join-command" --value "$JOIN_COMMAND" 2>/dev/null; then
-    echo "Join command successfully stored in Key Vault"
+while [ $RETRY_COUNT -lt 30 ]; do
+  if kubectl get nodes -o json | jq -e '.items[0].spec.providerID' > /dev/null 2>&1; then
+    echo "Node has been labeled by cloud provider"
+    kubectl get nodes -o wide
     break
   fi
-  echo "Failed to store secret in Key Vault (attempt $((RETRY_COUNT+1))/$MAX_RETRIES). Retrying in 10 seconds..."
+  echo "Waiting for cloud provider to label nodes (attempt $((RETRY_COUNT+1))/30)..."
   sleep 10
   RETRY_COUNT=$((RETRY_COUNT+1))
 done
-if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
-  echo "ERROR: Failed to store join command in Key Vault after $MAX_RETRIES attempts"
-fi
 
-# Onboard Kubernetes cluster to Azure Arc
-echo "=== Onboarding Kubernetes cluster to Azure Arc ==="
+echo "=== Storing join command in Key Vault ==="
+sleep 60
+JOIN_COMMAND=$(kubeadm token create --print-join-command)
+RETRY_COUNT=0
+while [ $RETRY_COUNT -lt 10 ]; do
+  if az keyvault secret set --vault-name ${KEY_VAULT_NAME} --name "kubeadm-join-command" --value "$JOIN_COMMAND" 2>/dev/null; then
+    echo "Join command stored"
+    break
+  fi
+  echo "Retry $((RETRY_COUNT+1))/10..."
+  sleep 15
+  RETRY_COUNT=$((RETRY_COUNT+1))
+done
 
-# Get subscription ID and resource group
+echo "=== Azure Arc onboarding ==="
 SUBSCRIPTION_ID=$(az account show --query id -o tsv)
-RESOURCE_GROUP="${RESOURCE_GROUP_NAME}"
-ARC_CLUSTER_NAME="${ARC_CLUSTER_NAME}"
-LOCATION="${LOCATION}"
-
-# Install required Azure CLI extensions
 az extension add --name connectedk8s --yes
 az extension add --name k8s-extension --yes
-
-# Register required resource providers
 az provider register --namespace Microsoft.Kubernetes --wait
 az provider register --namespace Microsoft.KubernetesConfiguration --wait
 az provider register --namespace Microsoft.ExtendedLocation --wait
 
-echo "Connecting cluster to Azure Arc..."
-# Connect the cluster to Azure Arc
 az connectedk8s connect \
-  --name "$ARC_CLUSTER_NAME" \
-  --resource-group "$RESOURCE_GROUP" \
-  --location "$LOCATION" \
-  --tags "environment=dev" "project=k8s-arc" \
-  --correlation-id "$(uuidgen)"
+  --name "${ARC_CLUSTER_NAME}" \
+  --resource-group "${RESOURCE_GROUP_NAME}" \
+  --location "${LOCATION}" \
+  --tags "environment=dev" \
+  --correlation-id "$(uuidgen)" || echo "Arc failed"
 
-if [ $? -eq 0 ]; then
-  echo "Successfully onboarded cluster to Azure Arc"
-  
-  # Verify the connection
-  az connectedk8s show --name "$ARC_CLUSTER_NAME" --resource-group "$RESOURCE_GROUP" -o table
-else
-  echo "WARNING: Failed to onboard cluster to Azure Arc"
-fi
-
-echo "=== Master node setup completed ==="
+echo "=== Master setup complete ==="

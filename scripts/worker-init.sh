@@ -54,10 +54,7 @@ if [ "$IP_FORWARD" != "1" ]; then
 fi
 echo "IP forwarding verified: enabled"
 
-# No CNI installation needed - kubenet is built into Kubernetes
-echo "=== Using kubenet for pod networking ==="
-
-# Install Azure CLI
+# Install Azure CLI first to retrieve join command and create cloud config
 echo "=== Installing Azure CLI ==="
 curl -sL https://aka.ms/InstallAzureCLIDeb | bash
 
@@ -70,7 +67,7 @@ echo "=== Getting Azure subscription information ==="
 AZURE_TENANT_ID=$(az account show --query tenantId -o tsv)
 AZURE_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
 
-# Create Azure cloud config for worker node
+# Create Azure cloud config for worker node BEFORE joining cluster
 echo "=== Creating Azure cloud config ==="
 mkdir -p /etc/kubernetes
 cat > /etc/kubernetes/azure.json <<EOFAZURE
@@ -95,10 +92,20 @@ cat > /etc/kubernetes/azure.json <<EOFAZURE
 EOFAZURE
 chmod 644 /etc/kubernetes/azure.json
 
+echo "=== Azure cloud config created successfully ==="
+ls -la /etc/kubernetes/azure.json
+
+# Configure kubelet to use external cloud provider
+echo "=== Configuring kubelet for external cloud provider ==="
+mkdir -p /etc/default
+cat > /etc/default/kubelet <<EOFKUBELET
+KUBELET_EXTRA_ARGS="--cloud-provider=external"
+EOFKUBELET
+
 # Retrieve join command from Azure Key Vault
 echo "=== Fetching kubeadm join command from Key Vault ==="
 JOIN_COMMAND=""
-MAX_RETRIES=5
+MAX_RETRIES=20
 RETRY_COUNT=0
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
   JOIN_COMMAND=$(az keyvault secret show --vault-name ${KEY_VAULT_NAME} --name "kubeadm-join-command" --query value -o tsv 2>/dev/null)
@@ -106,16 +113,43 @@ while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
     echo "Join command retrieved successfully"
     break
   fi
-  echo "Failed to retrieve join command (attempt $((RETRY_COUNT+1))/$MAX_RETRIES). Retrying in 10 seconds..."
-  sleep 10
+  echo "Failed to retrieve join command (attempt $((RETRY_COUNT+1))/$MAX_RETRIES). Retrying in 15 seconds..."
+  sleep 15
   RETRY_COUNT=$((RETRY_COUNT+1))
 done
 
 if [ -n "$JOIN_COMMAND" ]; then
   echo "Executing join command..."
   $JOIN_COMMAND
+  
+  if [ $? -eq 0 ]; then
+    echo "Successfully joined the cluster"
+    
+    # Verify kubelet is running with cloud provider
+    echo "=== Verifying kubelet configuration ==="
+    sleep 10
+    systemctl status kubelet --no-pager || true
+    
+    # Check if kubelet is using external cloud provider
+    if ps aux | grep kubelet | grep -q "cloud-provider=external"; then
+      echo "✓ Kubelet is configured with external cloud provider"
+    else
+      echo "⚠ Warning: Kubelet may not be using external cloud provider"
+    fi
+    
+    # Verify azure.json is accessible
+    if [ -f /etc/kubernetes/azure.json ]; then
+      echo "✓ Azure cloud config is present"
+    else
+      echo "✗ ERROR: Azure cloud config is missing"
+    fi
+  else
+    echo "ERROR: Failed to join cluster"
+    exit 1
+  fi
 else
-  echo "ERROR: Could not retrieve join command from Key Vault"
+  echo "ERROR: Could not retrieve join command from Key Vault after $MAX_RETRIES attempts"
+  exit 1
 fi
 
 echo "=== Worker node setup completed ==="
