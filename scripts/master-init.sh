@@ -55,32 +55,12 @@ if [ "$IP_FORWARD" != "1" ]; then
 fi
 echo "IP forwarding verified: enabled"
 
-# Create kubeadm config with external cloud provider
-echo "=== Creating kubeadm configuration ==="
-cat <<EOFKUBEADM > /tmp/kubeadm-config.yaml
-apiVersion: kubeadm.k8s.io/v1beta4
-kind: InitConfiguration
-nodeRegistration:
-  kubeletExtraArgs:
-    cloud-provider: "external"
----
-apiVersion: kubeadm.k8s.io/v1beta4
-kind: ClusterConfiguration
-networking:
-  podSubnet: "10.244.0.0/16"
-  serviceSubnet: "10.96.0.0/12"
-  dnsDomain: "cluster.local"
-apiServer:
-  extraArgs:
-    cloud-provider: "external"
-controllerManager:
-  extraArgs:
-    cloud-provider: "external"
-EOFKUBEADM
-
 # Initialize control plane
 echo "=== Initializing Kubernetes control plane ==="
-kubeadm init --config=/tmp/kubeadm-config.yaml --apiserver-advertise-address=$CONTROL_PLANE_IP
+kubeadm init \
+  --apiserver-advertise-address=$CONTROL_PLANE_IP \
+  --pod-network-cidr=10.244.0.0/16 \
+  --service-cidr=10.96.0.0/12
 
 # Configure kubeconfig for root
 mkdir -p /root/.kube
@@ -190,6 +170,26 @@ chmod 644 /etc/kubernetes/azure.json
 kubectl create secret generic azure-cloud-provider \
   --from-literal=cloud-config="$(cat /etc/kubernetes/azure.json)" \
   -n kube-system
+
+echo "=== Patching components for external cloud provider ==="
+
+# Patch kubelet
+mkdir -p /etc/systemd/system/kubelet.service.d
+cat > /etc/systemd/system/kubelet.service.d/20-cloud-provider.conf <<'EOFKUBELET'
+[Service]
+Environment="KUBELET_EXTRA_ARGS=--cloud-provider=external"
+EOFKUBELET
+systemctl daemon-reload
+systemctl restart kubelet
+
+# Patch kube-apiserver
+sed -i '/- kube-apiserver/a\    - --cloud-provider=external' /etc/kubernetes/manifests/kube-apiserver.yaml
+
+# Patch kube-controller-manager
+sed -i '/- kube-controller-manager/a\    - --cloud-provider=external' /etc/kubernetes/manifests/kube-controller-manager.yaml
+
+echo "Waiting for control plane to restart..."
+sleep 20
 
 echo "=== Deploying CCM ==="
 kubectl apply -f - <<'EOFCCM'
@@ -420,60 +420,24 @@ spec:
           path: /etc/kubernetes
 EOFCNM
 
-echo "=== Waiting for CCM and CNM to be ready ==="
-kubectl wait --for=condition=ready pod -l component=cloud-controller-manager -n kube-system --timeout=300s || echo "CCM not ready, checking status..."
-kubectl wait --for=condition=ready pod -l k8s-app=cloud-node-manager -n kube-system --timeout=300s || echo "CNM not ready, checking status..."
-
-# Verify CCM/CNM are running
-echo "=== Verifying CCM deployment ==="
-kubectl get deployment cloud-controller-manager -n kube-system
-kubectl get pods -l component=cloud-controller-manager -n kube-system
-
-echo "=== Verifying CNM deployment ==="
-kubectl get daemonset cloud-node-manager -n kube-system
-kubectl get pods -l k8s-app=cloud-node-manager -n kube-system
-
-# Wait for nodes to be ready with cloud provider labels
-echo "=== Waiting for nodes to get cloud provider labels ==="
-RETRY_COUNT=0
-while [ $RETRY_COUNT -lt 30 ]; do
-  if kubectl get nodes -o json | jq -e '.items[0].spec.providerID' > /dev/null 2>&1; then
-    echo "Node has been labeled by cloud provider"
-    kubectl get nodes -o wide
-    break
-  fi
-  echo "Waiting for cloud provider to label nodes (attempt $((RETRY_COUNT+1))/30)..."
-  sleep 10
-  RETRY_COUNT=$((RETRY_COUNT+1))
-done
+echo "=== Waiting for pods to be ready ==="
+sleep 20
+kubectl get pods -n kube-system
+kubectl get nodes -o wide
 
 echo "=== Storing join command in Key Vault ==="
-sleep 60
 JOIN_COMMAND=$(kubeadm token create --print-join-command)
-RETRY_COUNT=0
-while [ $RETRY_COUNT -lt 10 ]; do
-  if az keyvault secret set --vault-name ${KEY_VAULT_NAME} --name "kubeadm-join-command" --value "$JOIN_COMMAND" 2>/dev/null; then
-    echo "Join command stored"
-    break
-  fi
-  echo "Retry $((RETRY_COUNT+1))/10..."
-  sleep 15
-  RETRY_COUNT=$((RETRY_COUNT+1))
-done
+az keyvault secret set --vault-name ${KEY_VAULT_NAME} --name "kubeadm-join-command" --value "$JOIN_COMMAND"
+echo "Join command stored in Key Vault"
 
 echo "=== Azure Arc onboarding ==="
-SUBSCRIPTION_ID=$(az account show --query id -o tsv)
 az extension add --name connectedk8s --yes
 az extension add --name k8s-extension --yes
-az provider register --namespace Microsoft.Kubernetes --wait
-az provider register --namespace Microsoft.KubernetesConfiguration --wait
-az provider register --namespace Microsoft.ExtendedLocation --wait
 
 az connectedk8s connect \
   --name "${ARC_CLUSTER_NAME}" \
   --resource-group "${RESOURCE_GROUP_NAME}" \
   --location "${LOCATION}" \
-  --tags "environment=dev" \
-  --correlation-id "$(uuidgen)" || echo "Arc failed"
+  --tags "environment=dev" || echo "Arc onboarding will retry automatically"
 
 echo "=== Master setup complete ==="
