@@ -2,7 +2,7 @@
 
 This project deploys a fully functional Kubernetes cluster on Azure VMs using Terraform, complete with Azure Cloud Controller Manager (CCM), Cloud Node Manager (CNM), Calico CNI, and Azure Arc integration.
 
-## 🏗️ Architecture
+## Architecture
 
 - **Control Plane**: Single master node on Azure VM (Standard_D4ds_v5)
 - **Worker Nodes**: Azure VMSS with configurable instance count
@@ -11,14 +11,14 @@ This project deploys a fully functional Kubernetes cluster on Azure VMs using Te
 - **Monitoring**: Azure Arc-enabled Kubernetes for centralized management
 - **Storage**: Azure Managed Disks via CSI drivers (optional)
 
-## 📋 Prerequisites
+## Prerequisites
 
 - Azure subscription with Contributor access
 - Azure CLI installed and configured (`az login`)
 - Terraform >= 1.0
 - SSH key pair for VM access
 
-## 🔑 Generate SSH Key
+## Generate SSH Key
 
 ```bash
 # Generate SSH key pair for Kubernetes nodes
@@ -28,7 +28,7 @@ ssh-keygen -t rsa -b 4096 -f k8s-azure-key -C "k8s-azure-deployment"
 cat k8s-azure-key.pub
 ```
 
-## 🚀 Quick Start
+## Quick Start
 
 ### 1. Clone the Repository
 
@@ -95,7 +95,7 @@ kubectl get pods -n kube-system -l component=cloud-controller-manager
 kubectl get pods -n kube-system -l k8s-app=cloud-node-manager
 ```
 
-## 🎯 What Gets Deployed
+## What Gets Deployed
 
 ### Azure Resources
 
@@ -117,7 +117,7 @@ kubectl get pods -n kube-system -l k8s-app=cloud-node-manager
 - **CoreDNS**: Configured to forward to Azure DNS (168.63.129.16)
 - **Azure Arc Agent**: Cluster management and monitoring
 
-## 📦 Project Structure
+## Project Structure
 
 ```
 iaas-k8s-tf/
@@ -143,7 +143,7 @@ iaas-k8s-tf/
     └── cnm.yaml            # Cloud Node Manager
 ```
 
-## ⚙️ Configuration Options
+## Configuration Options
 
 ### VM Sizing
 
@@ -202,7 +202,7 @@ worker_node_count = 5
 terraform apply
 ```
 
-## 🛠️ Troubleshooting
+## Troubleshooting
 
 ### Workers Not Joining
 
@@ -250,7 +250,7 @@ terraform destroy
 # Confirm with 'yes'
 ```
 
-## 📚 Additional Resources
+## Additional Resources
 
 - **Bicep Version**: [IaaS K8s Bicep Implementation](https://github.com/francisnazareth/iaas-k8s)
 - [Azure Cloud Controller Manager](https://github.com/kubernetes-sigs/cloud-provider-azure)
@@ -258,7 +258,7 @@ terraform destroy
 - [Azure Arc-enabled Kubernetes](https://learn.microsoft.com/azure/azure-arc/kubernetes/)
 - [Kubernetes Documentation](https://kubernetes.io/docs/)
 
-## 🔐 Security Considerations
+## Security Considerations
 
 1. **SSH Keys**: Keep private key secure, never commit to git
 2. **Bastion Access**: Only access VMs via Azure Bastion
@@ -266,7 +266,7 @@ terraform destroy
 4. **RBAC**: Implement proper Kubernetes RBAC policies
 5. **Key Vault**: Managed Identity authentication only
 
-## 📝 Key Features
+## Key Features
 
 ✅ **Full Azure Integration**: Load Balancers, Managed Disks, Node Management  
 ✅ **Production Ready**: Calico network policy, CoreDNS, proper taints/tolerations  
@@ -275,16 +275,16 @@ terraform destroy
 ✅ **Observable**: Azure Arc integration for monitoring  
 ✅ **Automated**: Single `terraform apply` deployment  
 
-## 🤝 Contributing
+## Contributing
 
 Contributions welcome! Please open an issue or submit a pull request.
 
-## 📄 License
+## License
 
 MIT License
 
-## 👤 Authors
+## Authors
 
 - [Rithin Skaria](https://github.com/rithinskaria)
 
-- [Francis Nazareth](https://github.com/francisnazareth) for the reference Bicep implementation.
+- [Francis Nazareth](https://github.com/francisnazareth) (Bicep)
