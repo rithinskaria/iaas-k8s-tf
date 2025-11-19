@@ -8,12 +8,14 @@ resource "random_string" "kv_suffix" {
 
 locals {
   key_vault_name = "${var.key_vault_base_name}-${random_string.kv_suffix.result}"
-  
+
   # Determine VM type based on worker count
   vm_type = var.worker_node_count > 0 ? "vmss" : "standard"
-  
+
   # Load initialization scripts from external files
   master_init_script = templatefile("${path.module}/scripts/master-init.sh", {
+    API_ENDPOINT        = var.control_plane_endpoint
+    VAULT_NAME          = local.key_vault_name
     KEY_VAULT_NAME      = local.key_vault_name
     RESOURCE_GROUP_NAME = var.resource_group_name
     ARC_CLUSTER_NAME    = var.arc_cluster_name
@@ -107,13 +109,26 @@ module "vnet" {
 module "k8s_nsg" {
   source = "./modules/network_security_group"
 
-  name                   = "nsg-k8s-subnet"
-  location               = var.location
-  resource_group_name    = module.resource_group.name
-  subnet_id              = module.vnet.subnet_ids[var.k8s_subnet_name]
-  vnet_address_prefix    = var.vnet_address_prefix
-  allow_ssh_from_prefix  = "VirtualNetwork"
-  tags                   = var.tags
+  name                  = "nsg-k8s-subnet"
+  location              = var.location
+  resource_group_name   = module.resource_group.name
+  subnet_id             = module.vnet.subnet_ids[var.k8s_subnet_name]
+  vnet_address_prefix   = var.vnet_address_prefix
+  allow_ssh_from_prefix = "VirtualNetwork"
+  tags                  = var.tags
+
+  depends_on = [module.vnet]
+}
+
+module "nat_gateway" {
+  source = "./modules/nat_gateway"
+
+  nat_gateway_name           = "nat-k8s-subnet"
+  nat_gateway_public_ip_name = "pip-nat-k8s-subnet"
+  location                   = var.location
+  resource_group_name        = module.resource_group.name
+  subnet_id                  = module.vnet.subnet_ids[var.k8s_subnet_name]
+  tags                       = var.tags
 
   depends_on = [module.vnet]
 }
@@ -146,8 +161,21 @@ module "bastion" {
 }
 
 
-module "master_node" {
-  source = "./modules/master_node"
+module "load_balancer" {
+  source = "./modules/load_balancer"
+
+  lb_name             = "lb-k8s-masters"
+  location            = var.location
+  resource_group_name = module.resource_group.name
+  subnet_id           = module.vnet.subnet_ids[var.k8s_subnet_name]
+  frontend_ip         = var.control_plane_endpoint
+  tags                = var.tags
+
+  depends_on = [module.vnet]
+}
+
+module "master_vmss" {
+  source = "./modules/master_vmss"
 
   location            = var.location
   resource_group_name = module.resource_group.name
@@ -156,12 +184,18 @@ module "master_node" {
   admin_username      = var.admin_username
   ssh_public_key      = var.ssh_public_key
   vm_size             = var.vm_size
-  master_name         = "k8s-master"
+  vmss_name           = "vmss-k8s-masters"
+  instance_count      = var.master_count
   managed_identity_id = module.k8s_identity.identity_id
   os_disk_size_gb     = var.os_disk_size_gb
   init_script         = local.master_init_script
+  lb_backend_pool_id  = module.load_balancer.backend_pool_id
+  health_probe_id     = module.load_balancer.health_probe_id
 
-  depends_on = [module.key_vault]
+  depends_on = [
+    module.key_vault,
+    module.load_balancer
+  ]
 }
 
 
@@ -183,6 +217,7 @@ module "worker_vmss" {
 
   depends_on = [
     module.key_vault,
-    module.master_node
+    module.master_vmss,
+    module.load_balancer
   ]
 }

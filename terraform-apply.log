@@ -1,0 +1,893 @@
+[0m[1mdata.azurerm_client_config.current: Reading...[0m[0m
+[0m[1mdata.azurerm_client_config.current: Read complete after 0s [id=Y2xpZW50Q29uZmlncy9jbGllbnRJZD0wNGIwNzc5NS04ZGRiLTQ2MWEtYmJlZS0wMmY5ZTFiZjdiNDY7b2JqZWN0SWQ9MDA3NGUxZjMtZGE1OS00NDBhLThhMDktYTBkYTM4N2Y1YTdiO3N1YnNjcmlwdGlvbklkPWQxZTY5YmQ4LTJmZTEtNDJiYy1hM2E3LWNhNDQ2OWNiNTE2Nzt0ZW5hbnRJZD1hOGRhYjRhNy05MDI3LTQ2MWMtOTdhYi1iMDIyZjE1OTE3YTQ=][0m
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  [32m+[0m create[0m
+ [36m<=[0m read (data resources)[0m
+
+Terraform will perform the following actions:
+
+[1m  # azurerm_role_assignment.k8s_identity_arc_onboarding[0m will be created
+[0m  [32m+[0m[0m resource "azurerm_role_assignment" "k8s_identity_arc_onboarding" {
+      [32m+[0m[0m condition_version                = (known after apply)
+      [32m+[0m[0m id                               = (known after apply)
+      [32m+[0m[0m name                             = (known after apply)
+      [32m+[0m[0m principal_id                     = (known after apply)
+      [32m+[0m[0m principal_type                   = (known after apply)
+      [32m+[0m[0m role_definition_id               = (known after apply)
+      [32m+[0m[0m role_definition_name             = "Kubernetes Cluster - Azure Arc Onboarding"
+      [32m+[0m[0m scope                            = (known after apply)
+      [32m+[0m[0m skip_service_principal_aad_check = (known after apply)
+    }
+
+[1m  # azurerm_role_assignment.k8s_identity_contributor[0m will be created
+[0m  [32m+[0m[0m resource "azurerm_role_assignment" "k8s_identity_contributor" {
+      [32m+[0m[0m condition_version                = (known after apply)
+      [32m+[0m[0m id                               = (known after apply)
+      [32m+[0m[0m name                             = (known after apply)
+      [32m+[0m[0m principal_id                     = (known after apply)
+      [32m+[0m[0m principal_type                   = (known after apply)
+      [32m+[0m[0m role_definition_id               = (known after apply)
+      [32m+[0m[0m role_definition_name             = "Contributor"
+      [32m+[0m[0m scope                            = (known after apply)
+      [32m+[0m[0m skip_service_principal_aad_check = (known after apply)
+    }
+
+[1m  # azurerm_role_assignment.k8s_identity_uac[0m will be created
+[0m  [32m+[0m[0m resource "azurerm_role_assignment" "k8s_identity_uac" {
+      [32m+[0m[0m condition_version                = (known after apply)
+      [32m+[0m[0m id                               = (known after apply)
+      [32m+[0m[0m name                             = (known after apply)
+      [32m+[0m[0m principal_id                     = (known after apply)
+      [32m+[0m[0m principal_type                   = (known after apply)
+      [32m+[0m[0m role_definition_id               = (known after apply)
+      [32m+[0m[0m role_definition_name             = "User Access Administrator"
+      [32m+[0m[0m scope                            = (known after apply)
+      [32m+[0m[0m skip_service_principal_aad_check = (known after apply)
+    }
+
+[1m  # random_string.kv_suffix[0m will be created
+[0m  [32m+[0m[0m resource "random_string" "kv_suffix" {
+      [32m+[0m[0m id          = (known after apply)
+      [32m+[0m[0m length      = 5
+      [32m+[0m[0m lower       = true
+      [32m+[0m[0m min_lower   = 0
+      [32m+[0m[0m min_numeric = 0
+      [32m+[0m[0m min_special = 0
+      [32m+[0m[0m min_upper   = 0
+      [32m+[0m[0m number      = true
+      [32m+[0m[0m numeric     = true
+      [32m+[0m[0m result      = (known after apply)
+      [32m+[0m[0m special     = false
+      [32m+[0m[0m upper       = false
+    }
+
+[1m  # module.bastion.azurerm_bastion_host.this[0m will be created
+[0m  [32m+[0m[0m resource "azurerm_bastion_host" "this" {
+      [32m+[0m[0m copy_paste_enabled        = true
+      [32m+[0m[0m dns_name                  = (known after apply)
+      [32m+[0m[0m file_copy_enabled         = false
+      [32m+[0m[0m id                        = (known after apply)
+      [32m+[0m[0m ip_connect_enabled        = false
+      [32m+[0m[0m kerberos_enabled          = false
+      [32m+[0m[0m location                  = "canadacentral"
+      [32m+[0m[0m name                      = "bastion-k8s-dev-cc-01"
+      [32m+[0m[0m resource_group_name       = "rg-k8s-dev-cc-20"
+      [32m+[0m[0m scale_units               = 2
+      [32m+[0m[0m session_recording_enabled = false
+      [32m+[0m[0m shareable_link_enabled    = false
+      [32m+[0m[0m sku                       = "Standard"
+      [32m+[0m[0m tags                      = {
+          [32m+[0m[0m "environment" = "dev"
+          [32m+[0m[0m "project"     = "containers-infra"
+        }
+      [32m+[0m[0m tunneling_enabled         = false
+
+      [32m+[0m[0m ip_configuration {
+          [32m+[0m[0m name                 = "IpConf"
+          [32m+[0m[0m public_ip_address_id = (known after apply)
+          [32m+[0m[0m subnet_id            = (known after apply)
+        }
+    }
+
+[1m  # module.bastion.azurerm_public_ip.bastion[0m will be created
+[0m  [32m+[0m[0m resource "azurerm_public_ip" "bastion" {
+      [32m+[0m[0m allocation_method       = "Static"
+      [32m+[0m[0m ddos_protection_mode    = "VirtualNetworkInherited"
+      [32m+[0m[0m fqdn                    = (known after apply)
+      [32m+[0m[0m id                      = (known after apply)
+      [32m+[0m[0m idle_timeout_in_minutes = 4
+      [32m+[0m[0m ip_address              = (known after apply)
+      [32m+[0m[0m ip_version              = "IPv4"
+      [32m+[0m[0m location                = "canadacentral"
+      [32m+[0m[0m name                    = "pip-bastion-k8s-dev-cc-01"
+      [32m+[0m[0m resource_group_name     = "rg-k8s-dev-cc-20"
+      [32m+[0m[0m sku                     = "Standard"
+      [32m+[0m[0m sku_tier                = "Regional"
+      [32m+[0m[0m tags                    = {
+          [32m+[0m[0m "environment" = "dev"
+          [32m+[0m[0m "project"     = "containers-infra"
+        }
+    }
+
+[1m  # module.k8s_identity.azurerm_user_assigned_identity.this[0m will be created
+[0m  [32m+[0m[0m resource "azurerm_user_assigned_identity" "this" {
+      [32m+[0m[0m client_id           = (known after apply)
+      [32m+[0m[0m id                  = (known after apply)
+      [32m+[0m[0m location            = "canadacentral"
+      [32m+[0m[0m name                = "id-k8s-vms"
+      [32m+[0m[0m principal_id        = (known after apply)
+      [32m+[0m[0m resource_group_name = "rg-k8s-dev-cc-20"
+      [32m+[0m[0m tags                = {
+          [32m+[0m[0m "environment" = "dev"
+          [32m+[0m[0m "project"     = "containers-infra"
+        }
+      [32m+[0m[0m tenant_id           = (known after apply)
+    }
+
+[1m  # module.k8s_nsg.azurerm_network_security_group.this[0m will be created
+[0m  [32m+[0m[0m resource "azurerm_network_security_group" "this" {
+      [32m+[0m[0m id                  = (known after apply)
+      [32m+[0m[0m location            = "canadacentral"
+      [32m+[0m[0m name                = "nsg-k8s-subnet"
+      [32m+[0m[0m resource_group_name = "rg-k8s-dev-cc-20"
+      [32m+[0m[0m security_rule       = (known after apply)
+      [32m+[0m[0m tags                = {
+          [32m+[0m[0m "environment" = "dev"
+          [32m+[0m[0m "project"     = "containers-infra"
+        }
+    }
+
+[1m  # module.k8s_nsg.azurerm_network_security_rule.allow_inbound_ssh[0m will be created
+[0m  [32m+[0m[0m resource "azurerm_network_security_rule" "allow_inbound_ssh" {
+      [32m+[0m[0m access                      = "Allow"
+      [32m+[0m[0m destination_address_prefix  = "*"
+      [32m+[0m[0m destination_port_range      = "22"
+      [32m+[0m[0m direction                   = "Inbound"
+      [32m+[0m[0m id                          = (known after apply)
+      [32m+[0m[0m name                        = "AllowSSH"
+      [32m+[0m[0m network_security_group_name = "nsg-k8s-subnet"
+      [32m+[0m[0m priority                    = 100
+      [32m+[0m[0m protocol                    = "Tcp"
+      [32m+[0m[0m resource_group_name         = "rg-k8s-dev-cc-20"
+      [32m+[0m[0m source_address_prefix       = "VirtualNetwork"
+      [32m+[0m[0m source_port_range           = "*"
+    }
+
+[1m  # module.k8s_nsg.azurerm_network_security_rule.allow_k8s_api[0m will be created
+[0m  [32m+[0m[0m resource "azurerm_network_security_rule" "allow_k8s_api" {
+      [32m+[0m[0m access                      = "Allow"
+      [32m+[0m[0m destination_address_prefix  = "*"
+      [32m+[0m[0m destination_port_range      = "6443"
+      [32m+[0m[0m direction                   = "Inbound"
+      [32m+[0m[0m id                          = (known after apply)
+      [32m+[0m[0m name                        = "AllowK8sAPI"
+      [32m+[0m[0m network_security_group_name = "nsg-k8s-subnet"
+      [32m+[0m[0m priority                    = 110
+      [32m+[0m[0m protocol                    = "Tcp"
+      [32m+[0m[0m resource_group_name         = "rg-k8s-dev-cc-20"
+      [32m+[0m[0m source_address_prefix       = "10.0.0.0/20"
+      [32m+[0m[0m source_port_range           = "*"
+    }
+
+[1m  # module.k8s_nsg.azurerm_network_security_rule.allow_outbound_internet[0m will be created
+[0m  [32m+[0m[0m resource "azurerm_network_security_rule" "allow_outbound_internet" {
+      [32m+[0m[0m access                      = "Allow"
+      [32m+[0m[0m destination_address_prefix  = "Internet"
+      [32m+[0m[0m destination_port_range      = "*"
+      [32m+[0m[0m direction                   = "Outbound"
+      [32m+[0m[0m id                          = (known after apply)
+      [32m+[0m[0m name                        = "AllowOutboundInternet"
+      [32m+[0m[0m network_security_group_name = "nsg-k8s-subnet"
+      [32m+[0m[0m priority                    = 100
+      [32m+[0m[0m protocol                    = "*"
+      [32m+[0m[0m resource_group_name         = "rg-k8s-dev-cc-20"
+      [32m+[0m[0m source_address_prefix       = "*"
+      [32m+[0m[0m source_port_range           = "*"
+    }
+
+[1m  # module.k8s_nsg.azurerm_network_security_rule.allow_vnet_inbound[0m will be created
+[0m  [32m+[0m[0m resource "azurerm_network_security_rule" "allow_vnet_inbound" {
+      [32m+[0m[0m access                      = "Allow"
+      [32m+[0m[0m destination_address_prefix  = "VirtualNetwork"
+      [32m+[0m[0m destination_port_range      = "*"
+      [32m+[0m[0m direction                   = "Inbound"
+      [32m+[0m[0m id                          = (known after apply)
+      [32m+[0m[0m name                        = "AllowVnetInbound"
+      [32m+[0m[0m network_security_group_name = "nsg-k8s-subnet"
+      [32m+[0m[0m priority                    = 120
+      [32m+[0m[0m protocol                    = "*"
+      [32m+[0m[0m resource_group_name         = "rg-k8s-dev-cc-20"
+      [32m+[0m[0m source_address_prefix       = "VirtualNetwork"
+      [32m+[0m[0m source_port_range           = "*"
+    }
+
+[1m  # module.k8s_nsg.azurerm_subnet_network_security_group_association.this[0m will be created
+[0m  [32m+[0m[0m resource "azurerm_subnet_network_security_group_association" "this" {
+      [32m+[0m[0m id                        = (known after apply)
+      [32m+[0m[0m network_security_group_id = (known after apply)
+      [32m+[0m[0m subnet_id                 = (known after apply)
+    }
+
+[1m  # module.key_vault.data.azurerm_client_config.current[0m will be read during apply
+  # (depends on a resource or a module with changes pending)
+[0m [36m<=[0m[0m data "azurerm_client_config" "current" {
+      [32m+[0m[0m client_id       = (known after apply)
+      [32m+[0m[0m id              = (known after apply)
+      [32m+[0m[0m object_id       = (known after apply)
+      [32m+[0m[0m subscription_id = (known after apply)
+      [32m+[0m[0m tenant_id       = (known after apply)
+    }
+
+[1m  # module.key_vault.azurerm_key_vault.this[0m will be created
+[0m  [32m+[0m[0m resource "azurerm_key_vault" "this" {
+      [32m+[0m[0m access_policy                   = (known after apply)
+      [32m+[0m[0m enable_rbac_authorization       = (known after apply)
+      [32m+[0m[0m enabled_for_deployment          = true
+      [32m+[0m[0m enabled_for_disk_encryption     = false
+      [32m+[0m[0m enabled_for_template_deployment = true
+      [32m+[0m[0m id                              = (known after apply)
+      [32m+[0m[0m location                        = "canadacentral"
+      [32m+[0m[0m name                            = (known after apply)
+      [32m+[0m[0m public_network_access_enabled   = true
+      [32m+[0m[0m purge_protection_enabled        = false
+      [32m+[0m[0m rbac_authorization_enabled      = true
+      [32m+[0m[0m resource_group_name             = "rg-k8s-dev-cc-20"
+      [32m+[0m[0m sku_name                        = "standard"
+      [32m+[0m[0m soft_delete_retention_days      = 7
+      [32m+[0m[0m tags                            = {
+          [32m+[0m[0m "environment" = "dev"
+          [32m+[0m[0m "project"     = "containers-infra"
+        }
+      [32m+[0m[0m tenant_id                       = "a8dab4a7-9027-461c-97ab-b022f15917a4"
+      [32m+[0m[0m vault_uri                       = (known after apply)
+
+      [32m+[0m[0m network_acls {
+          [32m+[0m[0m bypass         = "AzureServices"
+          [32m+[0m[0m default_action = "Allow"
+        }
+    }
+
+[1m  # module.key_vault.azurerm_role_assignment.secrets_officer[0m will be created
+[0m  [32m+[0m[0m resource "azurerm_role_assignment" "secrets_officer" {
+      [32m+[0m[0m condition_version                = (known after apply)
+      [32m+[0m[0m id                               = (known after apply)
+      [32m+[0m[0m name                             = (known after apply)
+      [32m+[0m[0m principal_id                     = (known after apply)
+      [32m+[0m[0m principal_type                   = (known after apply)
+      [32m+[0m[0m role_definition_id               = (known after apply)
+      [32m+[0m[0m role_definition_name             = "Key Vault Secrets Officer"
+      [32m+[0m[0m scope                            = (known after apply)
+      [32m+[0m[0m skip_service_principal_aad_check = (known after apply)
+    }
+
+[1m  # module.load_balancer.azurerm_lb.k8s_api[0m will be created
+[0m  [32m+[0m[0m resource "azurerm_lb" "k8s_api" {
+      [32m+[0m[0m id                   = (known after apply)
+      [32m+[0m[0m location             = "canadacentral"
+      [32m+[0m[0m name                 = "lb-k8s-masters"
+      [32m+[0m[0m private_ip_address   = (known after apply)
+      [32m+[0m[0m private_ip_addresses = (known after apply)
+      [32m+[0m[0m public_ip_address_id = (known after apply)
+      [32m+[0m[0m resource_group_name  = "rg-k8s-dev-cc-20"
+      [32m+[0m[0m sku                  = "Standard"
+      [32m+[0m[0m sku_tier             = "Regional"
+      [32m+[0m[0m subnet_id            = (known after apply)
+      [32m+[0m[0m tags                 = {
+          [32m+[0m[0m "environment" = "dev"
+          [32m+[0m[0m "project"     = "containers-infra"
+        }
+
+      [32m+[0m[0m frontend_ip_configuration {
+          [32m+[0m[0m gateway_load_balancer_frontend_ip_configuration_id = (known after apply)
+          [32m+[0m[0m id                                                 = (known after apply)
+          [32m+[0m[0m inbound_nat_rules                                  = (known after apply)
+          [32m+[0m[0m load_balancer_rules                                = (known after apply)
+          [32m+[0m[0m name                                               = "k8s-api-frontend"
+          [32m+[0m[0m outbound_rules                                     = (known after apply)
+          [32m+[0m[0m private_ip_address                                 = "10.0.0.50"
+          [32m+[0m[0m private_ip_address_allocation                      = "Static"
+          [32m+[0m[0m private_ip_address_version                         = (known after apply)
+          [32m+[0m[0m public_ip_prefix_id                                = (known after apply)
+          [32m+[0m[0m subnet_id                                          = (known after apply)
+        }
+    }
+
+[1m  # module.load_balancer.azurerm_lb_backend_address_pool.k8s_masters[0m will be created
+[0m  [32m+[0m[0m resource "azurerm_lb_backend_address_pool" "k8s_masters" {
+      [32m+[0m[0m backend_ip_configurations = (known after apply)
+      [32m+[0m[0m id                        = (known after apply)
+      [32m+[0m[0m inbound_nat_rules         = (known after apply)
+      [32m+[0m[0m load_balancing_rules      = (known after apply)
+      [32m+[0m[0m loadbalancer_id           = (known after apply)
+      [32m+[0m[0m name                      = "k8s-master-pool"
+      [32m+[0m[0m outbound_rules            = (known after apply)
+    }
+
+[1m  # module.load_balancer.azurerm_lb_probe.k8s_api_health[0m will be created
+[0m  [32m+[0m[0m resource "azurerm_lb_probe" "k8s_api_health" {
+      [32m+[0m[0m id                  = (known after apply)
+      [32m+[0m[0m interval_in_seconds = 5
+      [32m+[0m[0m load_balancer_rules = (known after apply)
+      [32m+[0m[0m loadbalancer_id     = (known after apply)
+      [32m+[0m[0m name                = "k8s-api-health"
+      [32m+[0m[0m number_of_probes    = 2
+      [32m+[0m[0m port                = 6443
+      [32m+[0m[0m probe_threshold     = 1
+      [32m+[0m[0m protocol            = "Tcp"
+    }
+
+[1m  # module.load_balancer.azurerm_lb_rule.k8s_api[0m will be created
+[0m  [32m+[0m[0m resource "azurerm_lb_rule" "k8s_api" {
+      [32m+[0m[0m backend_address_pool_ids       = (known after apply)
+      [32m+[0m[0m backend_port                   = 6443
+      [32m+[0m[0m disable_outbound_snat          = false
+      [32m+[0m[0m enable_floating_ip             = (known after apply)
+      [32m+[0m[0m enable_tcp_reset               = (known after apply)
+      [32m+[0m[0m floating_ip_enabled            = false
+      [32m+[0m[0m frontend_ip_configuration_id   = (known after apply)
+      [32m+[0m[0m frontend_ip_configuration_name = "k8s-api-frontend"
+      [32m+[0m[0m frontend_port                  = 6443
+      [32m+[0m[0m id                             = (known after apply)
+      [32m+[0m[0m idle_timeout_in_minutes        = 4
+      [32m+[0m[0m load_distribution              = "Default"
+      [32m+[0m[0m loadbalancer_id                = (known after apply)
+      [32m+[0m[0m name                           = "k8s-api-rule"
+      [32m+[0m[0m probe_id                       = (known after apply)
+      [32m+[0m[0m protocol                       = "Tcp"
+      [32m+[0m[0m tcp_reset_enabled              = (known after apply)
+    }
+
+[1m  # module.master_vmss.azurerm_linux_virtual_machine_scale_set.masters[0m will be created
+[0m  [32m+[0m[0m resource "azurerm_linux_virtual_machine_scale_set" "masters" {
+      [32m+[0m[0m admin_username                                    = "azureuser"
+      [32m+[0m[0m computer_name_prefix                              = (known after apply)
+      [32m+[0m[0m disable_password_authentication                   = true
+      [32m+[0m[0m do_not_run_extensions_on_overprovisioned_machines = false
+      [32m+[0m[0m extension_operations_enabled                      = true
+      [32m+[0m[0m extensions_time_budget                            = "PT1H30M"
+      [32m+[0m[0m health_probe_id                                   = (known after apply)
+      [32m+[0m[0m id                                                = (known after apply)
+      [32m+[0m[0m instances                                         = 3
+      [32m+[0m[0m location                                          = "canadacentral"
+      [32m+[0m[0m max_bid_price                                     = -1
+      [32m+[0m[0m name                                              = "vmss-k8s-masters"
+      [32m+[0m[0m overprovision                                     = false
+      [32m+[0m[0m platform_fault_domain_count                       = (known after apply)
+      [32m+[0m[0m priority                                          = "Regular"
+      [32m+[0m[0m provision_vm_agent                                = true
+      [32m+[0m[0m resilient_vm_creation_enabled                     = false
+      [32m+[0m[0m resilient_vm_deletion_enabled                     = false
+      [32m+[0m[0m resource_group_name                               = "rg-k8s-dev-cc-20"
+      [32m+[0m[0m single_placement_group                            = true
+      [32m+[0m[0m sku                                               = "Standard_D4ds_v5"
+      [32m+[0m[0m tags                                              = {
+          [32m+[0m[0m "environment" = "dev"
+          [32m+[0m[0m "project"     = "containers-infra"
+        }
+      [32m+[0m[0m unique_id                                         = (known after apply)
+      [32m+[0m[0m upgrade_mode                                      = "Manual"
+      [32m+[0m[0m zone_balance                                      = false
+
+      [32m+[0m[0m admin_ssh_key {
+          # At least one attribute in this block is (or was) sensitive,
+          # so its contents will not be displayed.
+        }
+
+      [32m+[0m[0m extension {
+          # At least one attribute in this block is (or was) sensitive,
+          # so its contents will not be displayed.
+        }
+
+      [32m+[0m[0m identity {
+          [32m+[0m[0m identity_ids = (known after apply)
+          [32m+[0m[0m principal_id = (known after apply)
+          [32m+[0m[0m tenant_id    = (known after apply)
+          [32m+[0m[0m type         = "UserAssigned"
+        }
+
+      [32m+[0m[0m network_interface {
+          [32m+[0m[0m enable_accelerated_networking = false
+          [32m+[0m[0m enable_ip_forwarding          = true
+          [32m+[0m[0m name                          = "master-nic"
+          [32m+[0m[0m primary                       = true
+
+          [32m+[0m[0m ip_configuration {
+              [32m+[0m[0m load_balancer_backend_address_pool_ids = (known after apply)
+              [32m+[0m[0m name                                   = "ipconfig1"
+              [32m+[0m[0m primary                                = true
+              [32m+[0m[0m subnet_id                              = (known after apply)
+              [32m+[0m[0m version                                = "IPv4"
+            }
+        }
+
+      [32m+[0m[0m os_disk {
+          [32m+[0m[0m caching                   = "ReadWrite"
+          [32m+[0m[0m disk_size_gb              = 128
+          [32m+[0m[0m storage_account_type      = "Premium_LRS"
+          [32m+[0m[0m write_accelerator_enabled = false
+        }
+
+      [32m+[0m[0m source_image_reference {
+          [32m+[0m[0m offer     = "0001-com-ubuntu-server-jammy"
+          [32m+[0m[0m publisher = "Canonical"
+          [32m+[0m[0m sku       = "22_04-lts-gen2"
+          [32m+[0m[0m version   = "latest"
+        }
+    }
+
+[1m  # module.nat_gateway.azurerm_nat_gateway.this[0m will be created
+[0m  [32m+[0m[0m resource "azurerm_nat_gateway" "this" {
+      [32m+[0m[0m id                      = (known after apply)
+      [32m+[0m[0m idle_timeout_in_minutes = 10
+      [32m+[0m[0m location                = "canadacentral"
+      [32m+[0m[0m name                    = "nat-k8s-subnet"
+      [32m+[0m[0m resource_group_name     = "rg-k8s-dev-cc-20"
+      [32m+[0m[0m resource_guid           = (known after apply)
+      [32m+[0m[0m sku_name                = "Standard"
+      [32m+[0m[0m tags                    = {
+          [32m+[0m[0m "environment" = "dev"
+          [32m+[0m[0m "project"     = "containers-infra"
+        }
+    }
+
+[1m  # module.nat_gateway.azurerm_nat_gateway_public_ip_association.this[0m will be created
+[0m  [32m+[0m[0m resource "azurerm_nat_gateway_public_ip_association" "this" {
+      [32m+[0m[0m id                   = (known after apply)
+      [32m+[0m[0m nat_gateway_id       = (known after apply)
+      [32m+[0m[0m public_ip_address_id = (known after apply)
+    }
+
+[1m  # module.nat_gateway.azurerm_public_ip.nat[0m will be created
+[0m  [32m+[0m[0m resource "azurerm_public_ip" "nat" {
+      [32m+[0m[0m allocation_method       = "Static"
+      [32m+[0m[0m ddos_protection_mode    = "VirtualNetworkInherited"
+      [32m+[0m[0m fqdn                    = (known after apply)
+      [32m+[0m[0m id                      = (known after apply)
+      [32m+[0m[0m idle_timeout_in_minutes = 4
+      [32m+[0m[0m ip_address              = (known after apply)
+      [32m+[0m[0m ip_version              = "IPv4"
+      [32m+[0m[0m location                = "canadacentral"
+      [32m+[0m[0m name                    = "pip-nat-k8s-subnet"
+      [32m+[0m[0m resource_group_name     = "rg-k8s-dev-cc-20"
+      [32m+[0m[0m sku                     = "Standard"
+      [32m+[0m[0m sku_tier                = "Regional"
+      [32m+[0m[0m tags                    = {
+          [32m+[0m[0m "environment" = "dev"
+          [32m+[0m[0m "project"     = "containers-infra"
+        }
+    }
+
+[1m  # module.nat_gateway.azurerm_subnet_nat_gateway_association.this[0m will be created
+[0m  [32m+[0m[0m resource "azurerm_subnet_nat_gateway_association" "this" {
+      [32m+[0m[0m id             = (known after apply)
+      [32m+[0m[0m nat_gateway_id = (known after apply)
+      [32m+[0m[0m subnet_id      = (known after apply)
+    }
+
+[1m  # module.resource_group.azurerm_resource_group.this[0m will be created
+[0m  [32m+[0m[0m resource "azurerm_resource_group" "this" {
+      [32m+[0m[0m id       = (known after apply)
+      [32m+[0m[0m location = "canadacentral"
+      [32m+[0m[0m name     = "rg-k8s-dev-cc-20"
+      [32m+[0m[0m tags     = {
+          [32m+[0m[0m "environment" = "dev"
+          [32m+[0m[0m "project"     = "containers-infra"
+        }
+    }
+
+[1m  # module.vnet.azurerm_subnet.subnets["AzureBastionSubnet"][0m will be created
+[0m  [32m+[0m[0m resource "azurerm_subnet" "subnets" {
+      [32m+[0m[0m address_prefixes                              = [
+          [32m+[0m[0m "10.0.8.0/26",
+        ]
+      [32m+[0m[0m default_outbound_access_enabled               = true
+      [32m+[0m[0m id                                            = (known after apply)
+      [32m+[0m[0m name                                          = "AzureBastionSubnet"
+      [32m+[0m[0m private_endpoint_network_policies             = "Disabled"
+      [32m+[0m[0m private_link_service_network_policies_enabled = true
+      [32m+[0m[0m resource_group_name                           = "rg-k8s-dev-cc-20"
+      [32m+[0m[0m virtual_network_name                          = "vnet-k8s-dev-cc-01"
+    }
+
+[1m  # module.vnet.azurerm_subnet.subnets["snet-k8s"][0m will be created
+[0m  [32m+[0m[0m resource "azurerm_subnet" "subnets" {
+      [32m+[0m[0m address_prefixes                              = [
+          [32m+[0m[0m "10.0.0.0/21",
+        ]
+      [32m+[0m[0m default_outbound_access_enabled               = true
+      [32m+[0m[0m id                                            = (known after apply)
+      [32m+[0m[0m name                                          = "snet-k8s"
+      [32m+[0m[0m private_endpoint_network_policies             = "Disabled"
+      [32m+[0m[0m private_link_service_network_policies_enabled = true
+      [32m+[0m[0m resource_group_name                           = "rg-k8s-dev-cc-20"
+      [32m+[0m[0m virtual_network_name                          = "vnet-k8s-dev-cc-01"
+    }
+
+[1m  # module.vnet.azurerm_virtual_network.this[0m will be created
+[0m  [32m+[0m[0m resource "azurerm_virtual_network" "this" {
+      [32m+[0m[0m address_space                  = [
+          [32m+[0m[0m "10.0.0.0/20",
+        ]
+      [32m+[0m[0m dns_servers                    = (known after apply)
+      [32m+[0m[0m guid                           = (known after apply)
+      [32m+[0m[0m id                             = (known after apply)
+      [32m+[0m[0m location                       = "canadacentral"
+      [32m+[0m[0m name                           = "vnet-k8s-dev-cc-01"
+      [32m+[0m[0m private_endpoint_vnet_policies = "Disabled"
+      [32m+[0m[0m resource_group_name            = "rg-k8s-dev-cc-20"
+      [32m+[0m[0m subnet                         = (known after apply)
+      [32m+[0m[0m tags                           = {
+          [32m+[0m[0m "environment" = "dev"
+          [32m+[0m[0m "project"     = "containers-infra"
+        }
+    }
+
+[1m  # module.worker_vmss.azurerm_linux_virtual_machine_scale_set.workers[0m will be created
+[0m  [32m+[0m[0m resource "azurerm_linux_virtual_machine_scale_set" "workers" {
+      [32m+[0m[0m admin_username                                    = "azureuser"
+      [32m+[0m[0m computer_name_prefix                              = (known after apply)
+      [32m+[0m[0m disable_password_authentication                   = true
+      [32m+[0m[0m do_not_run_extensions_on_overprovisioned_machines = false
+      [32m+[0m[0m extension_operations_enabled                      = true
+      [32m+[0m[0m extensions_time_budget                            = "PT1H30M"
+      [32m+[0m[0m id                                                = (known after apply)
+      [32m+[0m[0m instances                                         = 3
+      [32m+[0m[0m location                                          = "canadacentral"
+      [32m+[0m[0m max_bid_price                                     = -1
+      [32m+[0m[0m name                                              = "vmss-k8s-workers"
+      [32m+[0m[0m overprovision                                     = false
+      [32m+[0m[0m platform_fault_domain_count                       = (known after apply)
+      [32m+[0m[0m priority                                          = "Regular"
+      [32m+[0m[0m provision_vm_agent                                = true
+      [32m+[0m[0m resilient_vm_creation_enabled                     = false
+      [32m+[0m[0m resilient_vm_deletion_enabled                     = false
+      [32m+[0m[0m resource_group_name                               = "rg-k8s-dev-cc-20"
+      [32m+[0m[0m single_placement_group                            = true
+      [32m+[0m[0m sku                                               = "Standard_D4ds_v5"
+      [32m+[0m[0m tags                                              = {
+          [32m+[0m[0m "environment" = "dev"
+          [32m+[0m[0m "project"     = "containers-infra"
+        }
+      [32m+[0m[0m unique_id                                         = (known after apply)
+      [32m+[0m[0m upgrade_mode                                      = "Automatic"
+      [32m+[0m[0m zone_balance                                      = false
+
+      [32m+[0m[0m admin_ssh_key {
+          # At least one attribute in this block is (or was) sensitive,
+          # so its contents will not be displayed.
+        }
+
+      [32m+[0m[0m extension {
+          # At least one attribute in this block is (or was) sensitive,
+          # so its contents will not be displayed.
+        }
+
+      [32m+[0m[0m identity {
+          [32m+[0m[0m identity_ids = (known after apply)
+          [32m+[0m[0m principal_id = (known after apply)
+          [32m+[0m[0m tenant_id    = (known after apply)
+          [32m+[0m[0m type         = "UserAssigned"
+        }
+
+      [32m+[0m[0m network_interface {
+          [32m+[0m[0m enable_accelerated_networking = false
+          [32m+[0m[0m enable_ip_forwarding          = true
+          [32m+[0m[0m name                          = "worker-nic"
+          [32m+[0m[0m primary                       = true
+
+          [32m+[0m[0m ip_configuration {
+              [32m+[0m[0m name      = "ipconfig1"
+              [32m+[0m[0m primary   = true
+              [32m+[0m[0m subnet_id = (known after apply)
+              [32m+[0m[0m version   = "IPv4"
+            }
+        }
+
+      [32m+[0m[0m os_disk {
+          [32m+[0m[0m caching                   = "ReadWrite"
+          [32m+[0m[0m disk_size_gb              = 128
+          [32m+[0m[0m storage_account_type      = "Premium_LRS"
+          [32m+[0m[0m write_accelerator_enabled = false
+        }
+
+      [32m+[0m[0m source_image_reference {
+          [32m+[0m[0m offer     = "0001-com-ubuntu-server-jammy"
+          [32m+[0m[0m publisher = "Canonical"
+          [32m+[0m[0m sku       = "22_04-lts-gen2"
+          [32m+[0m[0m version   = "latest"
+        }
+    }
+
+[1mPlan:[0m 29 to add, 0 to change, 0 to destroy.
+[0m
+Changes to Outputs:
+  [32m+[0m[0m api_server_endpoint       = "10.0.0.50:6443"
+  [32m+[0m[0m bastion_id                = (known after apply)
+  [32m+[0m[0m bastion_name              = "bastion-k8s-dev-cc-01"
+  [32m+[0m[0m bastion_public_ip_address = (known after apply)
+  [32m+[0m[0m cluster_mode              = "HA (3 masters)"
+  [32m+[0m[0m key_vault_name            = (known after apply)
+  [32m+[0m[0m key_vault_uri             = (known after apply)
+  [32m+[0m[0m load_balancer             = {
+      [32m+[0m[0m api_server_endpoint = "10.0.0.50:6443"
+      [32m+[0m[0m frontend_ip         = "10.0.0.50"
+      [32m+[0m[0m id                  = (known after apply)
+    }
+  [32m+[0m[0m master_vmss               = {
+      [32m+[0m[0m id             = (known after apply)
+      [32m+[0m[0m instance_count = 3
+      [32m+[0m[0m name           = "vmss-k8s-masters"
+    }
+  [32m+[0m[0m resource_group_id         = (known after apply)
+  [32m+[0m[0m resource_group_location   = "canadacentral"
+  [32m+[0m[0m resource_group_name       = "rg-k8s-dev-cc-20"
+  [32m+[0m[0m subnets                   = [
+      [32m+[0m[0m {
+          [32m+[0m[0m address_prefix = "10.0.8.0/26"
+          [32m+[0m[0m id             = (known after apply)
+          [32m+[0m[0m name           = "AzureBastionSubnet"
+        },
+      [32m+[0m[0m {
+          [32m+[0m[0m address_prefix = "10.0.0.0/21"
+          [32m+[0m[0m id             = (known after apply)
+          [32m+[0m[0m name           = "snet-k8s"
+        },
+    ]
+  [32m+[0m[0m vnet_id                   = (known after apply)
+  [32m+[0m[0m vnet_name                 = "vnet-k8s-dev-cc-01"
+  [32m+[0m[0m worker_vmss               = {
+      [32m+[0m[0m id             = (known after apply)
+      [32m+[0m[0m instance_count = 3
+      [32m+[0m[0m name           = "vmss-k8s-workers"
+    }
+[0m[1mrandom_string.kv_suffix: Creating...[0m[0m
+[0m[1mrandom_string.kv_suffix: Creation complete after 0s [id=772au][0m
+[0m[1mmodule.resource_group.azurerm_resource_group.this: Creating...[0m[0m
+[0m[1mmodule.resource_group.azurerm_resource_group.this: Still creating... [10s elapsed][0m[0m
+[0m[1mmodule.resource_group.azurerm_resource_group.this: Creation complete after 15s [id=/subscriptions/d1e69bd8-2fe1-42bc-a3a7-ca4469cb5167/resourceGroups/rg-k8s-dev-cc-20][0m
+[0m[1mmodule.key_vault.data.azurerm_client_config.current: Reading...[0m[0m
+[0m[1mmodule.vnet.azurerm_virtual_network.this: Creating...[0m[0m
+[0m[1mmodule.key_vault.data.azurerm_client_config.current: Read complete after 0s [id=Y2xpZW50Q29uZmlncy9jbGllbnRJZD0wNGIwNzc5NS04ZGRiLTQ2MWEtYmJlZS0wMmY5ZTFiZjdiNDY7b2JqZWN0SWQ9MDA3NGUxZjMtZGE1OS00NDBhLThhMDktYTBkYTM4N2Y1YTdiO3N1YnNjcmlwdGlvbklkPWQxZTY5YmQ4LTJmZTEtNDJiYy1hM2E3LWNhNDQ2OWNiNTE2Nzt0ZW5hbnRJZD1hOGRhYjRhNy05MDI3LTQ2MWMtOTdhYi1iMDIyZjE1OTE3YTQ=][0m
+[0m[1mmodule.k8s_identity.azurerm_user_assigned_identity.this: Creating...[0m[0m
+[0m[1mmodule.key_vault.azurerm_key_vault.this: Creating...[0m[0m
+[0m[1mmodule.k8s_identity.azurerm_user_assigned_identity.this: Creation complete after 6s [id=/subscriptions/d1e69bd8-2fe1-42bc-a3a7-ca4469cb5167/resourceGroups/rg-k8s-dev-cc-20/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id-k8s-vms][0m
+[0m[1mazurerm_role_assignment.k8s_identity_arc_onboarding: Creating...[0m[0m
+[0m[1mazurerm_role_assignment.k8s_identity_contributor: Creating...[0m[0m
+[0m[1mazurerm_role_assignment.k8s_identity_uac: Creating...[0m[0m
+[0m[1mmodule.vnet.azurerm_virtual_network.this: Creation complete after 8s [id=/subscriptions/d1e69bd8-2fe1-42bc-a3a7-ca4469cb5167/resourceGroups/rg-k8s-dev-cc-20/providers/Microsoft.Network/virtualNetworks/vnet-k8s-dev-cc-01][0m
+[0m[1mmodule.vnet.azurerm_subnet.subnets["snet-k8s"]: Creating...[0m[0m
+[0m[1mmodule.vnet.azurerm_subnet.subnets["AzureBastionSubnet"]: Creating...[0m[0m
+[0m[1mmodule.key_vault.azurerm_key_vault.this: Still creating... [10s elapsed][0m[0m
+[0m[1mazurerm_role_assignment.k8s_identity_contributor: Still creating... [10s elapsed][0m[0m
+[0m[1mazurerm_role_assignment.k8s_identity_uac: Still creating... [10s elapsed][0m[0m
+[0m[1mazurerm_role_assignment.k8s_identity_arc_onboarding: Still creating... [10s elapsed][0m[0m
+[0m[1mmodule.vnet.azurerm_subnet.subnets["AzureBastionSubnet"]: Still creating... [10s elapsed][0m[0m
+[0m[1mmodule.vnet.azurerm_subnet.subnets["snet-k8s"]: Still creating... [10s elapsed][0m[0m
+[0m[1mmodule.key_vault.azurerm_key_vault.this: Still creating... [20s elapsed][0m[0m
+[0m[1mmodule.vnet.azurerm_subnet.subnets["snet-k8s"]: Creation complete after 18s [id=/subscriptions/d1e69bd8-2fe1-42bc-a3a7-ca4469cb5167/resourceGroups/rg-k8s-dev-cc-20/providers/Microsoft.Network/virtualNetworks/vnet-k8s-dev-cc-01/subnets/snet-k8s][0m
+[0m[1mazurerm_role_assignment.k8s_identity_contributor: Still creating... [20s elapsed][0m[0m
+[0m[1mazurerm_role_assignment.k8s_identity_uac: Still creating... [20s elapsed][0m[0m
+[0m[1mazurerm_role_assignment.k8s_identity_arc_onboarding: Still creating... [20s elapsed][0m[0m
+[0m[1mmodule.vnet.azurerm_subnet.subnets["AzureBastionSubnet"]: Still creating... [20s elapsed][0m[0m
+[0m[1mmodule.key_vault.azurerm_key_vault.this: Still creating... [30s elapsed][0m[0m
+[0m[1mmodule.vnet.azurerm_subnet.subnets["AzureBastionSubnet"]: Creation complete after 23s [id=/subscriptions/d1e69bd8-2fe1-42bc-a3a7-ca4469cb5167/resourceGroups/rg-k8s-dev-cc-20/providers/Microsoft.Network/virtualNetworks/vnet-k8s-dev-cc-01/subnets/AzureBastionSubnet][0m
+[0m[1mmodule.k8s_nsg.azurerm_network_security_group.this: Creating...[0m[0m
+[0m[1mmodule.nat_gateway.azurerm_nat_gateway.this: Creating...[0m[0m
+[0m[1mmodule.nat_gateway.azurerm_public_ip.nat: Creating...[0m[0m
+[0m[1mmodule.load_balancer.azurerm_lb.k8s_api: Creating...[0m[0m
+[0m[1mmodule.bastion.azurerm_public_ip.bastion: Creating...[0m[0m
+[0m[1mazurerm_role_assignment.k8s_identity_uac: Creation complete after 27s [id=/subscriptions/d1e69bd8-2fe1-42bc-a3a7-ca4469cb5167/resourceGroups/rg-k8s-dev-cc-20/providers/Microsoft.Authorization/roleAssignments/d6301d3d-9431-d216-6d66-df80f197d558][0m
+[0m[1mmodule.bastion.azurerm_public_ip.bastion: Creation complete after 3s [id=/subscriptions/d1e69bd8-2fe1-42bc-a3a7-ca4469cb5167/resourceGroups/rg-k8s-dev-cc-20/providers/Microsoft.Network/publicIPAddresses/pip-bastion-k8s-dev-cc-01][0m
+[0m[1mmodule.bastion.azurerm_bastion_host.this: Creating...[0m[0m
+[0m[1mmodule.nat_gateway.azurerm_public_ip.nat: Creation complete after 4s [id=/subscriptions/d1e69bd8-2fe1-42bc-a3a7-ca4469cb5167/resourceGroups/rg-k8s-dev-cc-20/providers/Microsoft.Network/publicIPAddresses/pip-nat-k8s-subnet][0m
+[0m[1mazurerm_role_assignment.k8s_identity_arc_onboarding: Still creating... [30s elapsed][0m[0m
+[0m[1mazurerm_role_assignment.k8s_identity_contributor: Still creating... [30s elapsed][0m[0m
+[0m[1mmodule.k8s_nsg.azurerm_network_security_group.this: Creation complete after 8s [id=/subscriptions/d1e69bd8-2fe1-42bc-a3a7-ca4469cb5167/resourceGroups/rg-k8s-dev-cc-20/providers/Microsoft.Network/networkSecurityGroups/nsg-k8s-subnet][0m
+[0m[1mmodule.k8s_nsg.azurerm_network_security_rule.allow_inbound_ssh: Creating...[0m[0m
+[0m[1mmodule.k8s_nsg.azurerm_network_security_rule.allow_outbound_internet: Creating...[0m[0m
+[0m[1mmodule.k8s_nsg.azurerm_network_security_rule.allow_vnet_inbound: Creating...[0m[0m
+[0m[1mmodule.k8s_nsg.azurerm_network_security_rule.allow_k8s_api: Creating...[0m[0m
+[0m[1mazurerm_role_assignment.k8s_identity_arc_onboarding: Creation complete after 33s [id=/subscriptions/d1e69bd8-2fe1-42bc-a3a7-ca4469cb5167/resourceGroups/rg-k8s-dev-cc-20/providers/Microsoft.Authorization/roleAssignments/47564f7c-bb8e-e2a6-33a3-9a27ea2f198b][0m
+[0m[1mmodule.k8s_nsg.azurerm_subnet_network_security_group_association.this: Creating...[0m[0m
+[0m[1mmodule.key_vault.azurerm_key_vault.this: Still creating... [40s elapsed][0m[0m
+[0m[1mmodule.nat_gateway.azurerm_nat_gateway.this: Still creating... [10s elapsed][0m[0m
+[0m[1mmodule.load_balancer.azurerm_lb.k8s_api: Still creating... [10s elapsed][0m[0m
+[0m[1mmodule.k8s_nsg.azurerm_network_security_rule.allow_k8s_api: Creation complete after 2s [id=/subscriptions/d1e69bd8-2fe1-42bc-a3a7-ca4469cb5167/resourceGroups/rg-k8s-dev-cc-20/providers/Microsoft.Network/networkSecurityGroups/nsg-k8s-subnet/securityRules/AllowK8sAPI][0m
+[0m[1mmodule.k8s_nsg.azurerm_network_security_rule.allow_inbound_ssh: Creation complete after 2s [id=/subscriptions/d1e69bd8-2fe1-42bc-a3a7-ca4469cb5167/resourceGroups/rg-k8s-dev-cc-20/providers/Microsoft.Network/networkSecurityGroups/nsg-k8s-subnet/securityRules/AllowSSH][0m
+[0m[1mmodule.load_balancer.azurerm_lb.k8s_api: Creation complete after 11s [id=/subscriptions/d1e69bd8-2fe1-42bc-a3a7-ca4469cb5167/resourceGroups/rg-k8s-dev-cc-20/providers/Microsoft.Network/loadBalancers/lb-k8s-masters][0m
+[0m[1mmodule.load_balancer.azurerm_lb_backend_address_pool.k8s_masters: Creating...[0m[0m
+[0m[1mmodule.load_balancer.azurerm_lb_probe.k8s_api_health: Creating...[0m[0m
+[0m[1mmodule.bastion.azurerm_bastion_host.this: Still creating... [10s elapsed][0m[0m
+[0m[1mazurerm_role_assignment.k8s_identity_contributor: Creation complete after 38s [id=/subscriptions/d1e69bd8-2fe1-42bc-a3a7-ca4469cb5167/resourceGroups/rg-k8s-dev-cc-20/providers/Microsoft.Authorization/roleAssignments/0cd0fcba-819a-ccd5-f704-29271d2dafd8][0m
+[0m[1mmodule.k8s_nsg.azurerm_network_security_rule.allow_vnet_inbound: Still creating... [10s elapsed][0m[0m
+[0m[1mmodule.k8s_nsg.azurerm_network_security_rule.allow_outbound_internet: Still creating... [10s elapsed][0m[0m
+[0m[1mmodule.k8s_nsg.azurerm_subnet_network_security_group_association.this: Still creating... [10s elapsed][0m[0m
+[0m[1mmodule.k8s_nsg.azurerm_subnet_network_security_group_association.this: Creation complete after 11s [id=/subscriptions/d1e69bd8-2fe1-42bc-a3a7-ca4469cb5167/resourceGroups/rg-k8s-dev-cc-20/providers/Microsoft.Network/virtualNetworks/vnet-k8s-dev-cc-01/subnets/snet-k8s][0m
+[0m[1mmodule.key_vault.azurerm_key_vault.this: Still creating... [50s elapsed][0m[0m
+[0m[1mmodule.nat_gateway.azurerm_nat_gateway.this: Still creating... [20s elapsed][0m[0m
+[0m[1mmodule.load_balancer.azurerm_lb_backend_address_pool.k8s_masters: Still creating... [10s elapsed][0m[0m
+[0m[1mmodule.load_balancer.azurerm_lb_probe.k8s_api_health: Still creating... [10s elapsed][0m[0m
+[0m[1mmodule.k8s_nsg.azurerm_network_security_rule.allow_vnet_inbound: Creation complete after 15s [id=/subscriptions/d1e69bd8-2fe1-42bc-a3a7-ca4469cb5167/resourceGroups/rg-k8s-dev-cc-20/providers/Microsoft.Network/networkSecurityGroups/nsg-k8s-subnet/securityRules/AllowVnetInbound][0m
+[0m[1mmodule.bastion.azurerm_bastion_host.this: Still creating... [20s elapsed][0m[0m
+[0m[1mmodule.load_balancer.azurerm_lb_probe.k8s_api_health: Creation complete after 12s [id=/subscriptions/d1e69bd8-2fe1-42bc-a3a7-ca4469cb5167/resourceGroups/rg-k8s-dev-cc-20/providers/Microsoft.Network/loadBalancers/lb-k8s-masters/probes/k8s-api-health][0m
+[0m[1mmodule.k8s_nsg.azurerm_network_security_rule.allow_outbound_internet: Creation complete after 16s [id=/subscriptions/d1e69bd8-2fe1-42bc-a3a7-ca4469cb5167/resourceGroups/rg-k8s-dev-cc-20/providers/Microsoft.Network/networkSecurityGroups/nsg-k8s-subnet/securityRules/AllowOutboundInternet][0m
+[0m[1mmodule.nat_gateway.azurerm_nat_gateway.this: Creation complete after 24s [id=/subscriptions/d1e69bd8-2fe1-42bc-a3a7-ca4469cb5167/resourceGroups/rg-k8s-dev-cc-20/providers/Microsoft.Network/natGateways/nat-k8s-subnet][0m
+[0m[1mmodule.nat_gateway.azurerm_subnet_nat_gateway_association.this: Creating...[0m[0m
+[0m[1mmodule.nat_gateway.azurerm_nat_gateway_public_ip_association.this: Creating...[0m[0m
+[0m[1mmodule.load_balancer.azurerm_lb_backend_address_pool.k8s_masters: Creation complete after 15s [id=/subscriptions/d1e69bd8-2fe1-42bc-a3a7-ca4469cb5167/resourceGroups/rg-k8s-dev-cc-20/providers/Microsoft.Network/loadBalancers/lb-k8s-masters/backendAddressPools/k8s-master-pool][0m
+[0m[1mmodule.load_balancer.azurerm_lb_rule.k8s_api: Creating...[0m[0m
+[0m[1mmodule.key_vault.azurerm_key_vault.this: Still creating... [1m0s elapsed][0m[0m
+[0m[1mmodule.nat_gateway.azurerm_subnet_nat_gateway_association.this: Creation complete after 6s [id=/subscriptions/d1e69bd8-2fe1-42bc-a3a7-ca4469cb5167/resourceGroups/rg-k8s-dev-cc-20/providers/Microsoft.Network/virtualNetworks/vnet-k8s-dev-cc-01/subnets/snet-k8s][0m
+[0m[1mmodule.bastion.azurerm_bastion_host.this: Still creating... [30s elapsed][0m[0m
+[0m[1mmodule.nat_gateway.azurerm_nat_gateway_public_ip_association.this: Still creating... [10s elapsed][0m[0m
+[0m[1mmodule.load_balancer.azurerm_lb_rule.k8s_api: Creation complete after 9s [id=/subscriptions/d1e69bd8-2fe1-42bc-a3a7-ca4469cb5167/resourceGroups/rg-k8s-dev-cc-20/providers/Microsoft.Network/loadBalancers/lb-k8s-masters/loadBalancingRules/k8s-api-rule][0m
+[0m[1mmodule.key_vault.azurerm_key_vault.this: Still creating... [1m10s elapsed][0m[0m
+[0m[1mmodule.bastion.azurerm_bastion_host.this: Still creating... [40s elapsed][0m[0m
+[0m[1mmodule.nat_gateway.azurerm_nat_gateway_public_ip_association.this: Still creating... [20s elapsed][0m[0m
+[0m[1mmodule.nat_gateway.azurerm_nat_gateway_public_ip_association.this: Creation complete after 21s [id=/subscriptions/d1e69bd8-2fe1-42bc-a3a7-ca4469cb5167/resourceGroups/rg-k8s-dev-cc-20/providers/Microsoft.Network/natGateways/nat-k8s-subnet|/subscriptions/d1e69bd8-2fe1-42bc-a3a7-ca4469cb5167/resourceGroups/rg-k8s-dev-cc-20/providers/Microsoft.Network/publicIPAddresses/pip-nat-k8s-subnet][0m
+[0m[1mmodule.key_vault.azurerm_key_vault.this: Still creating... [1m20s elapsed][0m[0m
+[0m[1mmodule.bastion.azurerm_bastion_host.this: Still creating... [50s elapsed][0m[0m
+[0m[1mmodule.key_vault.azurerm_key_vault.this: Still creating... [1m30s elapsed][0m[0m
+[0m[1mmodule.bastion.azurerm_bastion_host.this: Still creating... [1m0s elapsed][0m[0m
+[0m[1mmodule.key_vault.azurerm_key_vault.this: Still creating... [1m40s elapsed][0m[0m
+[0m[1mmodule.bastion.azurerm_bastion_host.this: Still creating... [1m10s elapsed][0m[0m
+[0m[1mmodule.key_vault.azurerm_key_vault.this: Still creating... [1m50s elapsed][0m[0m
+[0m[1mmodule.bastion.azurerm_bastion_host.this: Still creating... [1m20s elapsed][0m[0m
+[0m[1mmodule.key_vault.azurerm_key_vault.this: Still creating... [2m0s elapsed][0m[0m
+[0m[1mmodule.bastion.azurerm_bastion_host.this: Still creating... [1m30s elapsed][0m[0m
+[0m[1mmodule.key_vault.azurerm_key_vault.this: Still creating... [2m10s elapsed][0m[0m
+[0m[1mmodule.bastion.azurerm_bastion_host.this: Still creating... [1m40s elapsed][0m[0m
+[0m[1mmodule.key_vault.azurerm_key_vault.this: Still creating... [2m20s elapsed][0m[0m
+[0m[1mmodule.bastion.azurerm_bastion_host.this: Still creating... [1m50s elapsed][0m[0m
+[0m[1mmodule.key_vault.azurerm_key_vault.this: Still creating... [2m30s elapsed][0m[0m
+[0m[1mmodule.bastion.azurerm_bastion_host.this: Still creating... [2m0s elapsed][0m[0m
+[0m[1mmodule.key_vault.azurerm_key_vault.this: Still creating... [2m40s elapsed][0m[0m
+[0m[1mmodule.bastion.azurerm_bastion_host.this: Still creating... [2m10s elapsed][0m[0m
+[0m[1mmodule.key_vault.azurerm_key_vault.this: Still creating... [2m50s elapsed][0m[0m
+[0m[1mmodule.bastion.azurerm_bastion_host.this: Still creating... [2m20s elapsed][0m[0m
+[0m[1mmodule.key_vault.azurerm_key_vault.this: Still creating... [3m0s elapsed][0m[0m
+[0m[1mmodule.key_vault.azurerm_key_vault.this: Creation complete after 3m3s [id=/subscriptions/d1e69bd8-2fe1-42bc-a3a7-ca4469cb5167/resourceGroups/rg-k8s-dev-cc-20/providers/Microsoft.KeyVault/vaults/kv-k8s-dev-cc-772au][0m
+[0m[1mmodule.key_vault.azurerm_role_assignment.secrets_officer: Creating...[0m[0m
+[0m[1mmodule.bastion.azurerm_bastion_host.this: Still creating... [2m30s elapsed][0m[0m
+[0m[1mmodule.key_vault.azurerm_role_assignment.secrets_officer: Still creating... [10s elapsed][0m[0m
+[0m[1mmodule.bastion.azurerm_bastion_host.this: Still creating... [2m40s elapsed][0m[0m
+[0m[1mmodule.key_vault.azurerm_role_assignment.secrets_officer: Still creating... [20s elapsed][0m[0m
+[0m[1mmodule.bastion.azurerm_bastion_host.this: Still creating... [2m50s elapsed][0m[0m
+[0m[1mmodule.key_vault.azurerm_role_assignment.secrets_officer: Creation complete after 28s [id=/subscriptions/d1e69bd8-2fe1-42bc-a3a7-ca4469cb5167/resourceGroups/rg-k8s-dev-cc-20/providers/Microsoft.KeyVault/vaults/kv-k8s-dev-cc-772au/providers/Microsoft.Authorization/roleAssignments/d5ee959d-280e-77ae-3961-805fcf3ce9b5][0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Creating...[0m[0m
+[0m[1mmodule.bastion.azurerm_bastion_host.this: Still creating... [3m0s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [10s elapsed][0m[0m
+[0m[1mmodule.bastion.azurerm_bastion_host.this: Still creating... [3m10s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [20s elapsed][0m[0m
+[0m[1mmodule.bastion.azurerm_bastion_host.this: Still creating... [3m20s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [30s elapsed][0m[0m
+[0m[1mmodule.bastion.azurerm_bastion_host.this: Still creating... [3m30s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [40s elapsed][0m[0m
+[0m[1mmodule.bastion.azurerm_bastion_host.this: Still creating... [3m40s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [50s elapsed][0m[0m
+[0m[1mmodule.bastion.azurerm_bastion_host.this: Still creating... [3m50s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [1m0s elapsed][0m[0m
+[0m[1mmodule.bastion.azurerm_bastion_host.this: Still creating... [4m0s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [1m10s elapsed][0m[0m
+[0m[1mmodule.bastion.azurerm_bastion_host.this: Still creating... [4m10s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [1m20s elapsed][0m[0m
+[0m[1mmodule.bastion.azurerm_bastion_host.this: Still creating... [4m20s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [1m30s elapsed][0m[0m
+[0m[1mmodule.bastion.azurerm_bastion_host.this: Still creating... [4m30s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [1m40s elapsed][0m[0m
+[0m[1mmodule.bastion.azurerm_bastion_host.this: Still creating... [4m40s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [1m50s elapsed][0m[0m
+[0m[1mmodule.bastion.azurerm_bastion_host.this: Still creating... [4m50s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [2m0s elapsed][0m[0m
+[0m[1mmodule.bastion.azurerm_bastion_host.this: Still creating... [5m0s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [2m10s elapsed][0m[0m
+[0m[1mmodule.bastion.azurerm_bastion_host.this: Still creating... [5m10s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [2m20s elapsed][0m[0m
+[0m[1mmodule.bastion.azurerm_bastion_host.this: Still creating... [5m20s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [2m30s elapsed][0m[0m
+[0m[1mmodule.bastion.azurerm_bastion_host.this: Still creating... [5m30s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [2m40s elapsed][0m[0m
+[0m[1mmodule.bastion.azurerm_bastion_host.this: Still creating... [5m40s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [2m50s elapsed][0m[0m
+[0m[1mmodule.bastion.azurerm_bastion_host.this: Still creating... [5m50s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [3m0s elapsed][0m[0m
+[0m[1mmodule.bastion.azurerm_bastion_host.this: Still creating... [6m0s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [3m10s elapsed][0m[0m
+[0m[1mmodule.bastion.azurerm_bastion_host.this: Still creating... [6m10s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [3m20s elapsed][0m[0m
+[0m[1mmodule.bastion.azurerm_bastion_host.this: Still creating... [6m20s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [3m30s elapsed][0m[0m
+[0m[1mmodule.bastion.azurerm_bastion_host.this: Still creating... [6m30s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [3m40s elapsed][0m[0m
+[0m[1mmodule.bastion.azurerm_bastion_host.this: Still creating... [6m40s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [3m50s elapsed][0m[0m
+[0m[1mmodule.bastion.azurerm_bastion_host.this: Still creating... [6m50s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [4m0s elapsed][0m[0m
+[0m[1mmodule.bastion.azurerm_bastion_host.this: Still creating... [7m0s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [4m10s elapsed][0m[0m
+[0m[1mmodule.bastion.azurerm_bastion_host.this: Still creating... [7m10s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [4m20s elapsed][0m[0m
+[0m[1mmodule.bastion.azurerm_bastion_host.this: Still creating... [7m20s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [4m30s elapsed][0m[0m
+[0m[1mmodule.bastion.azurerm_bastion_host.this: Still creating... [7m30s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [4m40s elapsed][0m[0m
+[0m[1mmodule.bastion.azurerm_bastion_host.this: Still creating... [7m40s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [4m50s elapsed][0m[0m
+[0m[1mmodule.bastion.azurerm_bastion_host.this: Still creating... [7m50s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [5m0s elapsed][0m[0m
+[0m[1mmodule.bastion.azurerm_bastion_host.this: Still creating... [8m0s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [5m10s elapsed][0m[0m
+[0m[1mmodule.bastion.azurerm_bastion_host.this: Still creating... [8m10s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [5m20s elapsed][0m[0m
+[0m[1mmodule.bastion.azurerm_bastion_host.this: Still creating... [8m20s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [5m30s elapsed][0m[0m
+[0m[1mmodule.bastion.azurerm_bastion_host.this: Still creating... [8m30s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [5m40s elapsed][0m[0m
+[0m[1mmodule.bastion.azurerm_bastion_host.this: Still creating... [8m40s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [5m50s elapsed][0m[0m
+[0m[1mmodule.bastion.azurerm_bastion_host.this: Still creating... [8m50s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [6m0s elapsed][0m[0m
+[0m[1mmodule.bastion.azurerm_bastion_host.this: Still creating... [9m0s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [6m10s elapsed][0m[0m
+[0m[1mmodule.bastion.azurerm_bastion_host.this: Still creating... [9m10s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [6m20s elapsed][0m[0m
+[0m[1mmodule.bastion.azurerm_bastion_host.this: Still creating... [9m20s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [6m30s elapsed][0m[0m
+[0m[1mmodule.bastion.azurerm_bastion_host.this: Still creating... [9m30s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [6m40s elapsed][0m[0m
+[0m[1mmodule.bastion.azurerm_bastion_host.this: Still creating... [9m40s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [6m50s elapsed][0m[0m
+[0m[1mmodule.bastion.azurerm_bastion_host.this: Creation complete after 9m48s [id=/subscriptions/d1e69bd8-2fe1-42bc-a3a7-ca4469cb5167/resourceGroups/rg-k8s-dev-cc-20/providers/Microsoft.Network/bastionHosts/bastion-k8s-dev-cc-01][0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [7m0s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [7m10s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [7m20s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [7m30s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [7m40s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [7m50s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [8m0s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [8m10s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [8m20s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [8m30s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [8m40s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [8m50s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [9m0s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [9m10s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [9m20s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [9m30s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [9m40s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [9m50s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [10m0s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [10m10s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [10m20s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [10m30s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [10m40s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [10m50s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [11m0s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [11m10s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [11m20s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [11m30s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [11m40s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [11m50s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [12m0s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [12m10s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [12m20s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [12m30s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [12m40s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [12m50s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [13m0s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [13m10s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [13m20s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [13m30s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [13m40s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [13m50s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [14m0s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [14m10s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [14m20s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [14m30s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [14m40s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [14m50s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [15m0s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [15m10s elapsed][0m[0m
+[0m[1mmodule.master_vmss.azurerm_linux_virtual_machine_scale_set.masters: Still creating... [15m20s elapsed][0m[0m

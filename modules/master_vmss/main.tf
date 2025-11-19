@@ -1,4 +1,4 @@
-resource "azurerm_linux_virtual_machine_scale_set" "workers" {
+resource "azurerm_linux_virtual_machine_scale_set" "masters" {
   name                   = var.vmss_name
   location               = var.location
   resource_group_name    = var.resource_group_name
@@ -7,7 +7,7 @@ resource "azurerm_linux_virtual_machine_scale_set" "workers" {
   admin_username         = var.admin_username
   overprovision          = false
   single_placement_group = true
-  upgrade_mode           = "Automatic"
+  upgrade_mode           = "Manual"
   tags                   = var.tags
 
   admin_ssh_key {
@@ -29,7 +29,7 @@ resource "azurerm_linux_virtual_machine_scale_set" "workers" {
   }
 
   network_interface {
-    name                 = "worker-nic"
+    name                 = "master-nic"
     primary              = true
     enable_ip_forwarding = true
 
@@ -37,6 +37,8 @@ resource "azurerm_linux_virtual_machine_scale_set" "workers" {
       name      = "ipconfig1"
       primary   = true
       subnet_id = var.subnet_id
+
+      load_balancer_backend_address_pool_ids = [var.lb_backend_pool_id]
     }
   }
 
@@ -50,7 +52,7 @@ resource "azurerm_linux_virtual_machine_scale_set" "workers" {
   disable_password_authentication = true
 
   extension {
-    name                       = "k8s-worker-config"
+    name                       = "k8s-master-config"
     publisher                  = "Microsoft.Azure.Extensions"
     type                       = "CustomScript"
     type_handler_version       = "2.1"
@@ -60,4 +62,6 @@ resource "azurerm_linux_virtual_machine_scale_set" "workers" {
       script = base64encode(var.init_script)
     })
   }
+
+  health_probe_id = var.health_probe_id
 }

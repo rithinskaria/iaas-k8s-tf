@@ -1,5 +1,19 @@
 #!/bin/bash
 CONTROL_PLANE_IP=$(hostname -I | awk '{print $1}')
+HOSTNAME=$(hostname)
+API_ENDPOINT="${API_ENDPOINT}" # Will be templated by Terraform
+
+# Detect if this is the first master (instance 0 in VMSS)
+if [[ "$HOSTNAME" =~ 000000$ ]]; then
+  IS_FIRST_MASTER=true
+else
+  IS_FIRST_MASTER=false
+fi
+
+echo "Hostname: $HOSTNAME"
+echo "First master: $IS_FIRST_MASTER"
+echo "Control plane IP: $CONTROL_PLANE_IP"
+echo "API endpoint: $API_ENDPOINT"
 
 # Disable swap
 swapoff -a
@@ -62,23 +76,112 @@ if [ "$IP_FORWARD" != "1" ]; then
 fi
 echo "IP forwarding verified: enabled"
 
-# Initialize control plane
-echo "=== Initializing Kubernetes control plane ==="
-kubeadm init \
-  --apiserver-advertise-address=$CONTROL_PLANE_IP \
-  --pod-network-cidr=10.244.0.0/16 \
-  --service-cidr=10.96.0.0/12
+# Install Azure CLI and login BEFORE any operations that need it
+echo "=== Installing Azure CLI ==="
+curl -sL https://aka.ms/InstallAzureCLIDeb | bash
+az login --identity
 
-if [ $? -ne 0 ]; then
-  echo "ERROR: kubeadm init failed"
-  exit 1
+AZURE_TENANT_ID=$(az account show --query tenantId -o tsv)
+AZURE_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+
+if [ "$IS_FIRST_MASTER" = true ]; then
+  # First master: Initialize control plane with HA support
+  echo "=== Initializing Kubernetes control plane (FIRST MASTER) ==="
+  kubeadm init \
+    --control-plane-endpoint="$API_ENDPOINT:6443" \
+    --apiserver-advertise-address=$CONTROL_PLANE_IP \
+    --pod-network-cidr=10.244.0.0/16 \
+    --service-cidr=10.96.0.0/12 \
+    --upload-certs
+
+  if [ $? -ne 0 ]; then
+    echo "ERROR: kubeadm init failed"
+    exit 1
+  fi
+
+  echo "✓ Kubernetes control plane initialized successfully"
+
+  # Wait for control plane to stabilize
+  echo "=== Waiting for control plane to stabilize ==="
+  sleep 20
+
+  # Upload certificates to Key Vault for joining masters
+  echo "=== Uploading certificates to Key Vault ==="
+  export VAULT_NAME="${VAULT_NAME}"
+  
+  # Upload CA certificates and keys
+  az keyvault secret set --vault-name "$VAULT_NAME" --name "k8s-ca-crt" --value "$(base64 -w 0 /etc/kubernetes/pki/ca.crt)" --output none
+  az keyvault secret set --vault-name "$VAULT_NAME" --name "k8s-ca-key" --value "$(base64 -w 0 /etc/kubernetes/pki/ca.key)" --output none
+  az keyvault secret set --vault-name "$VAULT_NAME" --name "k8s-sa-key" --value "$(base64 -w 0 /etc/kubernetes/pki/sa.key)" --output none
+  az keyvault secret set --vault-name "$VAULT_NAME" --name "k8s-sa-pub" --value "$(base64 -w 0 /etc/kubernetes/pki/sa.pub)" --output none
+  az keyvault secret set --vault-name "$VAULT_NAME" --name "k8s-front-proxy-ca-crt" --value "$(base64 -w 0 /etc/kubernetes/pki/front-proxy-ca.crt)" --output none
+  az keyvault secret set --vault-name "$VAULT_NAME" --name "k8s-front-proxy-ca-key" --value "$(base64 -w 0 /etc/kubernetes/pki/front-proxy-ca.key)" --output none
+  az keyvault secret set --vault-name "$VAULT_NAME" --name "k8s-etcd-ca-crt" --value "$(base64 -w 0 /etc/kubernetes/pki/etcd/ca.crt)" --output none
+  az keyvault secret set --vault-name "$VAULT_NAME" --name "k8s-etcd-ca-key" --value "$(base64 -w 0 /etc/kubernetes/pki/etcd/ca.key)" --output none
+  
+  echo "✓ Certificates uploaded to Key Vault"
+else
+  # Joining master: Download certificates from Key Vault and join control plane
+  echo "=== Joining Kubernetes control plane (ADDITIONAL MASTER) ==="
+  
+  # Wait for first master to upload certificates
+  echo "Waiting for certificates to be available in Key Vault..."
+  export VAULT_NAME="${VAULT_NAME}"
+  MAX_RETRIES=30
+  RETRY_COUNT=0
+  
+  while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+    if az keyvault secret show --vault-name "$VAULT_NAME" --name "k8s-ca-crt" &>/dev/null; then
+      echo "✓ Certificates found in Key Vault"
+      break
+    fi
+    echo "Waiting for certificates... ($RETRY_COUNT/$MAX_RETRIES)"
+    sleep 10
+    RETRY_COUNT=$((RETRY_COUNT + 1))
+  done
+  
+  if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
+    echo "ERROR: Timeout waiting for certificates in Key Vault"
+    exit 1
+  fi
+  
+  # Download and restore certificates
+  echo "=== Downloading certificates from Key Vault ==="
+  mkdir -p /etc/kubernetes/pki/etcd
+  
+  az keyvault secret show --vault-name "$VAULT_NAME" --name "k8s-ca-crt" --query value -o tsv | base64 -d > /etc/kubernetes/pki/ca.crt
+  az keyvault secret show --vault-name "$VAULT_NAME" --name "k8s-ca-key" --query value -o tsv | base64 -d > /etc/kubernetes/pki/ca.key
+  az keyvault secret show --vault-name "$VAULT_NAME" --name "k8s-sa-key" --query value -o tsv | base64 -d > /etc/kubernetes/pki/sa.key
+  az keyvault secret show --vault-name "$VAULT_NAME" --name "k8s-sa-pub" --query value -o tsv | base64 -d > /etc/kubernetes/pki/sa.pub
+  az keyvault secret show --vault-name "$VAULT_NAME" --name "k8s-front-proxy-ca-crt" --query value -o tsv | base64 -d > /etc/kubernetes/pki/front-proxy-ca.crt
+  az keyvault secret show --vault-name "$VAULT_NAME" --name "k8s-front-proxy-ca-key" --query value -o tsv | base64 -d > /etc/kubernetes/pki/front-proxy-ca.key
+  az keyvault secret show --vault-name "$VAULT_NAME" --name "k8s-etcd-ca-crt" --query value -o tsv | base64 -d > /etc/kubernetes/pki/etcd/ca.crt
+  az keyvault secret show --vault-name "$VAULT_NAME" --name "k8s-etcd-ca-key" --query value -o tsv | base64 -d > /etc/kubernetes/pki/etcd/ca.key
+  
+  chmod 600 /etc/kubernetes/pki/*.key /etc/kubernetes/pki/etcd/*.key
+  echo "✓ Certificates downloaded and restored"
+  
+  # Get join command from Key Vault
+  echo "=== Retrieving join command ==="
+  JOIN_COMMAND=$(az keyvault secret show --vault-name "$VAULT_NAME" --name "k8s-join-command" --query value -o tsv)
+  
+  if [ -z "$JOIN_COMMAND" ]; then
+    echo "ERROR: Join command not found in Key Vault"
+    exit 1
+  fi
+  
+  # Execute join command with --control-plane flag
+  echo "Joining control plane..."
+  $JOIN_COMMAND --control-plane --apiserver-advertise-address=$CONTROL_PLANE_IP
+  
+  if [ $? -ne 0 ]; then
+    echo "ERROR: kubeadm join failed"
+    exit 1
+  fi
+  
+  echo "✓ Successfully joined control plane"
+  sleep 30
 fi
-
-echo "✓ Kubernetes control plane initialized successfully"
-
-# Wait for control plane to stabilize
-echo "=== Waiting for control plane to stabilize ==="
-sleep 60
 
 # Configure kubeconfig for root
 mkdir -p /root/.kube
@@ -90,9 +193,49 @@ mkdir -p /home/azureuser/.kube
 cp -i /etc/kubernetes/admin.conf /home/azureuser/.kube/config
 chown azureuser:azureuser /home/azureuser/.kube/config
 
-echo "=== Installing Calico CNI ==="
-kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.28.0/manifests/tigera-operator.yaml
-sleep 10
+# Create azure.json for cloud provider on ALL masters
+echo "=== Creating azure.json ==="
+mkdir -p /etc/kubernetes
+cat > /etc/kubernetes/azure.json <<EOFAZURE
+{
+  "cloud": "AzurePublicCloud",
+  "tenantId": "$AZURE_TENANT_ID",
+  "subscriptionId": "$AZURE_SUBSCRIPTION_ID",
+  "resourceGroup": "${RESOURCE_GROUP_NAME}",
+  "location": "${LOCATION}",
+  "vmType": "${VM_TYPE}",
+  "vnetName": "${VNET_NAME}",
+  "vnetResourceGroup": "${RESOURCE_GROUP_NAME}",
+  "subnetName": "${SUBNET_NAME}",
+  "securityGroupName": "${NSG_NAME}",
+  "useManagedIdentityExtension": true,
+  "userAssignedIdentityID": "${MI_CLIENT_ID}",
+  "useInstanceMetadata": true,
+  "loadBalancerSku": "Standard",
+  "maximumLoadBalancerRuleCount": 250,
+  "excludeMasterFromStandardLB": true
+}
+EOFAZURE
+chmod 644 /etc/kubernetes/azure.json
+
+# Patch kubelet for external cloud provider on ALL masters
+echo "=== Patching kubelet for external cloud provider ==="
+mkdir -p /etc/systemd/system/kubelet.service.d
+cat > /etc/systemd/system/kubelet.service.d/20-cloud-provider.conf <<'EOFKUBELET'
+[Service]
+Environment="KUBELET_EXTRA_ARGS=--cloud-provider=external"
+EOFKUBELET
+systemctl daemon-reload
+systemctl restart kubelet
+
+# Patch kube-controller-manager on ALL masters
+sed -i '/- kube-controller-manager/a\    - --cloud-provider=external' /etc/kubernetes/manifests/kube-controller-manager.yaml
+
+# Only deploy CNI and cluster-wide resources on first master
+if [ "$IS_FIRST_MASTER" = true ]; then
+  echo "=== Installing Calico CNI ==="
+  kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.28.0/manifests/tigera-operator.yaml
+  sleep 10
 
 cat <<EOFCALICO | kubectl apply -f -
 apiVersion: operator.tigera.io/v1
@@ -150,58 +293,13 @@ EOFCOREDNS
 kubectl rollout restart deployment coredns -n kube-system
 kubectl rollout status deployment coredns -n kube-system --timeout=120s
 
-echo "=== Installing Azure CLI ==="
-curl -sL https://aka.ms/InstallAzureCLIDeb | bash
-az login --identity
+echo "Waiting for control plane to stabilize after CoreDNS update..."
+sleep 20
 
-AZURE_TENANT_ID=$(az account show --query tenantId -o tsv)
-AZURE_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
-
-
-echo "=== Creating azure.json ==="
-mkdir -p /etc/kubernetes
-cat > /etc/kubernetes/azure.json <<EOFAZURE
-{
-  "cloud": "AzurePublicCloud",
-  "tenantId": "$AZURE_TENANT_ID",
-  "subscriptionId": "$AZURE_SUBSCRIPTION_ID",
-  "resourceGroup": "${RESOURCE_GROUP_NAME}",
-  "location": "${LOCATION}",
-  "vmType": "${VM_TYPE}",
-  "vnetName": "${VNET_NAME}",
-  "vnetResourceGroup": "${RESOURCE_GROUP_NAME}",
-  "subnetName": "${SUBNET_NAME}",
-  "securityGroupName": "${NSG_NAME}",
-  "useManagedIdentityExtension": true,
-  "userAssignedIdentityID": "${MI_CLIENT_ID}",
-  "useInstanceMetadata": true,
-  "loadBalancerSku": "Standard",
-  "maximumLoadBalancerRuleCount": 250,
-  "excludeMasterFromStandardLB": true
-}
-EOFAZURE
-chmod 644 /etc/kubernetes/azure.json
-
+# Create azure-cloud-provider secret (only on first master)
 kubectl create secret generic azure-cloud-provider \
   --from-literal=cloud-config="$(cat /etc/kubernetes/azure.json)" \
-  -n kube-system
-
-echo "=== Patching components for external cloud provider ==="
-
-# Patch kubelet
-mkdir -p /etc/systemd/system/kubelet.service.d
-cat > /etc/systemd/system/kubelet.service.d/20-cloud-provider.conf <<'EOFKUBELET'
-[Service]
-Environment="KUBELET_EXTRA_ARGS=--cloud-provider=external"
-EOFKUBELET
-systemctl daemon-reload
-systemctl restart kubelet
-
-# Patch kube-controller-manager
-sed -i '/- kube-controller-manager/a\    - --cloud-provider=external' /etc/kubernetes/manifests/kube-controller-manager.yaml
-
-echo "Waiting for control plane to restart..."
-sleep 20
+  -n kube-system || echo "Secret already exists"
 
 echo "=== Deploying CCM ==="
 kubectl apply -f - <<'EOFCCM'
@@ -439,11 +537,8 @@ kubectl get nodes -o wide
 
 echo "=== Storing join command in Key Vault ==="
 JOIN_COMMAND=$(kubeadm token create --print-join-command)
-az keyvault secret set --vault-name ${KEY_VAULT_NAME} --name "kubeadm-join-command" --value "$JOIN_COMMAND"
+az keyvault secret set --vault-name "${KEY_VAULT_NAME}" --name "k8s-join-command" --value "$JOIN_COMMAND" --output none
 echo "Join command stored in Key Vault"
-sleep 20
-echo "=== Storing join command in Azure Key Vault ==="
-az keyvault secret set --vault-name "${KEY_VAULT_NAME}" --name "kubeadm-join-command" --value "$JOIN_COMMAND"
 
 # Wait for cluster to stabilize before Arc onboarding
 echo "=== Waiting for cluster components to stabilize ==="
@@ -463,5 +558,10 @@ az connectedk8s connect \
   --location "${LOCATION}" \
   --correlation-id "$CORRELATION_ID" \
   --tags "environment=dev" || echo "⚠ Arc onboarding completed with warnings (Custom Location warnings can be ignored)"
+
+  echo "=== First master setup complete ==="
+else
+  echo "=== Additional master setup complete ==="
+fi
 
 echo "=== Master setup complete ==="

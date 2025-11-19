@@ -43,12 +43,21 @@ output "bastion_public_ip_address" {
   value       = module.bastion.public_ip_address
 }
 
-output "master_node" {
-  description = "Master node details"
+output "load_balancer" {
+  description = "Load balancer details for API server"
   value = {
-    name               = module.master_node.name
-    id                 = module.master_node.id
-    private_ip_address = module.master_node.private_ip_address
+    id                  = module.load_balancer.lb_id
+    frontend_ip         = module.load_balancer.frontend_ip
+    api_server_endpoint = module.load_balancer.api_server_endpoint
+  }
+}
+
+output "master_vmss" {
+  description = "Master VMSS details"
+  value = {
+    name           = module.master_vmss.vmss_name
+    id             = module.master_vmss.vmss_id
+    instance_count = var.master_count
   }
 }
 
@@ -59,6 +68,16 @@ output "worker_vmss" {
     id             = module.worker_vmss.id
     instance_count = module.worker_vmss.instance_count
   }
+}
+
+output "api_server_endpoint" {
+  description = "Kubernetes API server endpoint (use this to connect to the cluster)"
+  value       = module.load_balancer.api_server_endpoint
+}
+
+output "cluster_mode" {
+  description = "Cluster mode (single-master or HA)"
+  value       = var.master_count == 1 ? "single-master" : "HA (3 masters)"
 }
 
 output "key_vault_name" {
