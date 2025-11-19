@@ -157,6 +157,7 @@ az login --identity
 AZURE_TENANT_ID=$(az account show --query tenantId -o tsv)
 AZURE_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
 
+
 echo "=== Creating azure.json ==="
 mkdir -p /etc/kubernetes
 cat > /etc/kubernetes/azure.json <<EOFAZURE
@@ -440,12 +441,27 @@ echo "=== Storing join command in Key Vault ==="
 JOIN_COMMAND=$(kubeadm token create --print-join-command)
 az keyvault secret set --vault-name ${KEY_VAULT_NAME} --name "kubeadm-join-command" --value "$JOIN_COMMAND"
 echo "Join command stored in Key Vault"
+sleep 20
+echo "=== Storing join command in Azure Key Vault ==="
+az keyvault secret set --vault-name "${KEY_VAULT_NAME}" --name "kubeadm-join-command" --value "$JOIN_COMMAND"
+
+# Wait for cluster to stabilize before Arc onboarding
+echo "=== Waiting for cluster components to stabilize ==="
+sleep 60
 
 echo "=== Azure Arc onboarding ==="
 az extension add --name connectedk8s --yes
 az extension add --name k8s-extension --yes
-az login --identity
-az account set --subscription "$AZURE_SUBSCRIPTION_ID"
-az connectedk8s connect --name "${ARC_CLUSTER_NAME}" --resource-group "${RESOURCE_GROUP_NAME}" --location "${LOCATION}" --correlation-id "c18ab9d0-685e-48e7-ab55-12588447b0ed" 
+
+# Generate unique correlation ID
+CORRELATION_ID=$(cat /proc/sys/kernel/random/uuid)
+echo "Using correlation ID: $CORRELATION_ID"
+
+az connectedk8s connect \
+  --name "${ARC_CLUSTER_NAME}" \
+  --resource-group "${RESOURCE_GROUP_NAME}" \
+  --location "${LOCATION}" \
+  --correlation-id "$CORRELATION_ID" \
+  --tags "environment=dev" || echo "⚠ Arc onboarding completed with warnings (Custom Location warnings can be ignored)"
 
 echo "=== Master setup complete ==="

@@ -55,3 +55,9 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "enable_arc" {
+  description = "Enable Azure Arc onboarding after cluster deployment"
+  type        = bool
+  default     = true
+}

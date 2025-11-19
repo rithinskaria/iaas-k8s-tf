@@ -1,18 +1,5 @@
 data "azurerm_client_config" "current" {}
 
-
-resource "azurerm_resource_provider_registration" "kubernetes" {
-  name = "Microsoft.Kubernetes"
-}
-
-resource "azurerm_resource_provider_registration" "kubernetes_configuration" {
-  name = "Microsoft.KubernetesConfiguration"
-}
-
-resource "azurerm_resource_provider_registration" "extended_location" {
-  name = "Microsoft.ExtendedLocation"
-}
-
 resource "random_string" "kv_suffix" {
   length  = 5
   special = false

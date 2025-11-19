@@ -8,6 +8,11 @@ output "id" {
   value       = azurerm_linux_virtual_machine.master.id
 }
 
+output "vm_id" {
+  description = "Master VM ID for extensions"
+  value       = azurerm_linux_virtual_machine.master.id
+}
+
 output "private_ip_address" {
   description = "Master VM private IP address"
   value       = azurerm_network_interface.master.private_ip_address

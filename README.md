@@ -18,6 +18,23 @@ This project deploys a fully functional Kubernetes cluster on Azure VMs using Te
 - Terraform >= 1.0
 - SSH key pair for VM access
 
+### Required Azure Resource Providers
+
+Register the following Azure resource providers for Azure Arc-enabled Kubernetes:
+
+```bash
+az provider register --namespace Microsoft.Kubernetes
+az provider register --namespace Microsoft.KubernetesConfiguration
+az provider register --namespace Microsoft.ExtendedLocation
+```
+
+Verify registration status:
+```bash
+az provider show -n Microsoft.Kubernetes --query "registrationState"
+az provider show -n Microsoft.KubernetesConfiguration --query "registrationState"
+az provider show -n Microsoft.ExtendedLocation --query "registrationState"
+```
+
 ## Generate SSH Key
 
 ```bash
