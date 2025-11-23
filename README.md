@@ -1,41 +1,66 @@
-# Kubernetes IaaS on Azure with Terraform
+# Azure Kubernetes Cluster with Cilium/Istio or Calico CNI
 
-This project deploys a fully functional Kubernetes cluster on Azure VMs using Terraform, complete with Azure Cloud Controller Manager (CCM), Cloud Node Manager (CNM), Calico CNI, and Azure Arc integration.
+Production-ready Kubernetes cluster on Azure IaaS with flexible CNI options: **Cilium + Istio service mesh** or **Calico** networking.
 
-## Architecture
+## Overview
 
-- **Control Plane**: Single master node on Azure VM (Standard_D4ds_v5)
-- **Worker Nodes**: Azure VMSS with configurable instance count
-- **Networking**: Calico CNI with VXLAN encapsulation
-- **Cloud Provider**: Azure CCM/CNM for load balancer and node lifecycle management
-- **Monitoring**: Azure Arc-enabled Kubernetes for centralized management
-- **Storage**: Azure Managed Disks via CSI drivers (optional)
+This project provides a fully automated, production-grade Kubernetes deployment on Azure using Terraform. It features:
+
+- **Flexible CNI Options**: Switch between Calico (traditional CNI) or Cilium + Istio (modern service mesh) with a single variable
+- **Azure-Native Integration**: Managed Identity, Key Vault, Cloud Controller Manager, Cloud Node Manager
+- **Automated Scaling**: Self-refreshing join tokens enable true VMSS auto-scaling without manual intervention
+- **High Availability Ready**: Multi-node architecture with external cloud provider mode
+- **Security Hardened**: RBAC, network policies, managed identities, NSG rules
+- **Azure Arc Ready**: Optional Arc enablement for unified management and GitOps
+
+---
+
+## Architecture Highlights
+
+### Infrastructure
+- **Control Plane**: Single master node (expandable to multi-master)
+- **Worker Nodes**: Azure VMSS (3 instances default, auto-scalable)
+- **Bastion**: Secure SSH access point
+- **Networking**: Azure VNet with dedicated subnets, NSG security
+
+### CNI Options
+
+**Option 1: Calico (CNI_TYPE=1)**
+- Traditional Kubernetes networking
+- Tigera operator deployment
+- VXLAN encapsulation
+- NetworkPolicy support
+
+**Option 2: Cilium + Istio (CNI_TYPE=2, Default)**
+- Cilium CNI for advanced networking (eBPF-based)
+- Istio service mesh for traffic management
+- mTLS encryption between services
+- Advanced observability (Hubble, Jaeger, Kiali)
+- L7 network policies
+
+### Key Features
+- **Automated Join Token Refresh**: Cron job updates join command every 23 hours in Azure Key Vault
+- **Zero-Configuration Worker Scaling**: New VMSS instances auto-join cluster via Key Vault
+- **External Cloud Provider**: CCM manages LoadBalancers, CNM initializes nodes
+- **Istio Ingress Gateway**: Production-ready ingress with LoadBalancer integration (CNI_TYPE=2)
+- **Azure Arc Support**: Optional enablement for centralized management, GitOps, and Azure Policy
+
+---
 
 ## Prerequisites
 
-- Azure subscription with Contributor access
-- Azure CLI installed and configured (`az login`)
-- Terraform >= 1.0
-- SSH key pair for VM access
+### Azure Requirements
+- **Azure Subscription** with appropriate quotas
+- **Azure CLI** installed and configured (`az login`)
+- **Permissions**: Contributor role on subscription or resource group
+- **Resource Quotas**: 4+ vCPUs, 2+ Public IPs, 1 Load Balancer
 
-### Required Azure Resource Providers
+### Local Tools
+- **Terraform** >= 1.0
+- **kubectl** (for cluster access)
+- **SSH key pair** for VM access
 
-Register the following Azure resource providers for Azure Arc-enabled Kubernetes:
-
-```bash
-az provider register --namespace Microsoft.Kubernetes
-az provider register --namespace Microsoft.KubernetesConfiguration
-az provider register --namespace Microsoft.ExtendedLocation
-```
-
-Verify registration status:
-```bash
-az provider show -n Microsoft.Kubernetes --query "registrationState"
-az provider show -n Microsoft.KubernetesConfiguration --query "registrationState"
-az provider show -n Microsoft.ExtendedLocation --query "registrationState"
-```
-
-## Generate SSH Key
+### Generate SSH Key
 
 ```bash
 # Generate SSH key pair for Kubernetes nodes
@@ -44,6 +69,21 @@ ssh-keygen -t rsa -b 4096 -f k8s-azure-key -C "k8s-azure-deployment"
 # Display public key to add to terraform.tfvars
 cat k8s-azure-key.pub
 ```
+
+### Azure Arc (Optional)
+
+If you plan to enable Azure Arc after deployment:
+
+```bash
+az provider register --namespace Microsoft.Kubernetes
+az provider register --namespace Microsoft.KubernetesConfiguration
+az provider register --namespace Microsoft.ExtendedLocation
+
+# Install Arc CLI extension
+az extension add --name connectedk8s
+```
+
+---
 
 ## Quick Start
 
@@ -56,31 +96,43 @@ cd iaas-k8s-tf
 
 ### 2. Configure Variables
 
-Create or update `terraform.tfvars`:
+Create `terraform.tfvars`:
 
 ```hcl
-location            = "canadacentral"
-resource_group_name = "rg-k8s-dev-cc-13"
-vnet_name           = "vnet-k8s-dev-cc-01"
-vnet_address_prefix = "10.0.0.0/20"
-k8s_subnet_name     = "snet-k8s"
-k8s_subnet_prefix   = "10.0.0.0/21"
-bastion_subnet_prefix = "10.0.8.0/26"
-bastion_name        = "bastion-k8s-dev-cc-01"
-bastion_sku_name    = "Standard"
-key_vault_base_name = "kv-k8s-dev-cc"
-arc_cluster_name    = "arc-k8s-dev-cc-01"
+# Minimal configuration
+resource_group_name = "rg-k8s-prod"
+location            = "eastus"
 admin_username      = "azureuser"
-vm_size             = "Standard_D4ds_v5"
-worker_node_count   = 3
-os_disk_size_gb     = 128
+ssh_public_key_path = "~/.ssh/id_rsa.pub"
 
-# Paste your SSH public key here
-ssh_public_key = "ssh-rsa AAAAB3NzaC1yc2E... k8s-azure-deployment"
+# CNI Selection (optional, defaults to Cilium + Istio)
+cni_type = 2  # 1 = Calico, 2 = Cilium + Istio
+
+# Worker count (optional, default = 3)
+worker_node_count = 3
+
+# VM sizing (optional, defaults to Standard_D2s_v3)
+vm_size = "Standard_D2s_v3"
+```
+
+**Advanced Configuration Example:**
+
+```hcl
+resource_group_name   = "rg-k8s-prod"
+location              = "eastus"
+vnet_address_prefix   = "10.0.0.0/16"
+k8s_subnet_prefix     = "10.0.1.0/24"
+bastion_subnet_prefix = "10.0.2.0/26"
+admin_username        = "azureuser"
+ssh_public_key_path   = "~/.ssh/k8s-azure-key.pub"
+cni_type              = 2
+worker_node_count     = 5
+vm_size               = "Standard_D4s_v3"
 
 tags = {
-  environment = "dev"
-  project     = "containers-infra"
+  environment = "production"
+  project     = "k8s-infrastructure"
+  owner       = "platform-team"
 }
 ```
 
@@ -90,49 +142,115 @@ tags = {
 # Initialize Terraform
 terraform init
 
-# Review the plan
-terraform plan
+# Review plan
+terraform plan -out=tfplan
 
-# Deploy infrastructure
-terraform apply
+# Deploy (takes 15-25 minutes)
+terraform apply tfplan
 ```
 
-### 4. Access the Cluster
+**Terraform will output:**
+- Bastion public IP
+- Master node private IP
+- Key Vault name
+- Resource group name
+
+### 4. Access Cluster
 
 ```bash
-# Connect to master node via Azure Bastion or SSH
-ssh -i k8s-azure-key azureuser@<master-node-private-ip>
+# SSH to bastion (get IP from Terraform output)
+ssh azureuser@<BASTION_PUBLIC_IP>
 
-# Verify cluster status
-kubectl get nodes
-kubectl get pods -A
+# From bastion, SSH to master
+ssh 10.0.1.4
 
-# Check cloud controllers
-kubectl get pods -n kube-system -l component=cloud-controller-manager
-kubectl get pods -n kube-system -l k8s-app=cloud-node-manager
+# Verify cluster
+kubectl get nodes -o wide
+# Expected: master + 3 workers, all Ready
+
+# Check CNI pods
+kubectl get pods -n kube-system  # Calico or Cilium
+kubectl get pods -n istio-system # If CNI_TYPE=2
+
+# Copy kubeconfig to local machine (from bastion)
+scp azureuser@10.0.1.4:/home/azureuser/.kube/config ~/.kube/config
 ```
+
+### 5. Verify Deployment
+
+**If using Cilium + Istio (CNI_TYPE=2):**
+
+```bash
+# Scale Istio ingress gateway (starts at 0 replicas)
+kubectl scale deployment istio-ingressgateway -n istio-system --replicas=3
+
+# Verify gateway
+kubectl get pods -n istio-system -l app=istio-ingressgateway
+kubectl get svc istio-ingressgateway -n istio-system
+# EXTERNAL-IP should show Azure LoadBalancer IP
+```
+
+**Deploy test application:**
+
+```bash
+# Create namespace with Istio injection (if CNI_TYPE=2)
+kubectl create namespace demo
+kubectl label namespace demo istio-injection=enabled  # CNI_TYPE=2 only
+
+# Deploy nginx
+kubectl create deployment nginx --image=nginx --replicas=2 -n demo
+kubectl expose deployment nginx --type=LoadBalancer --port=80 -n demo
+
+# Get external IP
+kubectl get svc nginx -n demo
+```
+
+---
 
 ## What Gets Deployed
 
-### Azure Resources
+### Azure Infrastructure
 
-- **Resource Group**: Container for all resources
-- **Virtual Network**: 10.0.0.0/20 with Kubernetes and Bastion subnets
-- **Network Security Group**: Controls traffic to Kubernetes subnet
-- **Key Vault**: Stores kubeadm join command for workers
-- **Managed Identity**: User-assigned identity for VMs with required permissions
-- **Master Node VM**: Single control plane node
-- **Worker VMSS**: Scalable worker node pool
-- **Azure Bastion**: Secure access to VMs
+| Resource | Configuration | Purpose |
+|----------|--------------|----------|
+| **Resource Group** | Single RG | Container for all resources |
+| **Virtual Network** | 10.0.0.0/16 (default) | Network isolation |
+| **Subnets** | K8s: 10.0.1.0/24, Bastion: 10.0.2.0/26 | Network segmentation |
+| **Network Security Group** | Master/Worker/Bastion rules | Traffic control |
+| **Key Vault** | Standard SKU | Secure join token storage |
+| **Managed Identity** | User-assigned | Azure authentication |
+| **Master VM** | 1x Standard_D2s_v3 | Kubernetes control plane |
+| **Worker VMSS** | 3x Standard_D2s_v3 (default) | Scalable worker pool |
+| **Bastion** | Standard SKU | Secure SSH access |
+| **Load Balancer** | Standard SKU | Service ingress (auto-created) |
 
 ### Kubernetes Components
 
-- **Kubernetes v1.34.2**: Latest stable release
-- **Calico CNI v3.28.0**: Network policy and pod networking
-- **Azure Cloud Controller Manager**: Manages Azure load balancers
-- **Azure Cloud Node Manager**: Manages node lifecycle and labels
-- **CoreDNS**: Configured to forward to Azure DNS (168.63.129.16)
-- **Azure Arc Agent**: Cluster management and monitoring
+**Core (All Deployments):**
+- Kubernetes v1.34.0
+- kubeadm cluster bootstrap
+- containerd runtime
+- Azure Cloud Controller Manager (CCM) v1.34.2
+- Azure Cloud Node Manager (CNM) v1.34.2
+- CoreDNS with Azure DNS integration
+
+**CNI Option 1 (cni_type=1):**
+- Calico v3.28.0 (Tigera operator)
+- VXLAN encapsulation
+- NetworkPolicy support
+
+**CNI Option 2 (cni_type=2, Default):**
+- Cilium v1.16.5 (Helm chart)
+- Istio v1.28.0 service mesh
+- Istiod on master node
+- Istio Ingress Gateway (0 initial replicas, scale to 3)
+- mTLS between services
+- Hubble network observability
+
+**Optional (Post-Deployment):**
+- Azure Arc agents (manual enablement)
+- Prometheus + Grafana (manual deployment)
+- Azure Monitor Container Insights (via Arc)
 
 ## Project Structure
 
@@ -160,26 +278,108 @@ iaas-k8s-tf/
     └── cnm.yaml            # Cloud Node Manager
 ```
 
-## Configuration Options
+---
 
-### VM Sizing
+## Key Technologies
 
-Adjust `vm_size` in `terraform.tfvars`:
-- **Development**: Standard_D2ds_v5
-- **Production**: Standard_D4ds_v5 or higher
+| Component | Version | Purpose |
+|-----------|---------|----------|
+| **Kubernetes** | v1.34.0 | Container orchestration |
+| **kubeadm** | v1.34.0 | Cluster bootstrapping |
+| **containerd** | v1.7.x | Container runtime |
+| **Calico** | v3.28.0 | CNI Option 1: Traditional networking |
+| **Cilium** | v1.16.5 | CNI Option 2: eBPF-based networking |
+| **Istio** | v1.28.0 | Service mesh (with Cilium) |
+| **Azure CCM** | v1.34.2 | Cloud Controller Manager |
+| **Azure CNM** | v1.34.2 | Cloud Node Manager |
 
-### Worker Node Count
+---
 
-Set `worker_node_count` to scale worker nodes:
-- **Single-node cluster**: 0 (master only)
-- **Small cluster**: 2-3 workers
-- **Production**: 5+ workers
+## CNI Selection Guide
 
-### VM Type Selection
+### When to Use Calico (cni_type=1)
 
-The infrastructure automatically determines `vmType` for Azure cloud config:
-- `vmType: "standard"` when `worker_node_count = 0`
-- `vmType: "vmss"` when `worker_node_count > 0`
+✅ **Best For:**
+- Traditional Kubernetes networking requirements
+- BGP routing preferred (customizable)
+- Simpler troubleshooting with mature tooling
+- Lower resource overhead (~200MB memory)
+- Well-established in existing infrastructure
+
+**Features:**
+- NetworkPolicy support
+- VXLAN or IPIP encapsulation
+- GlobalNetworkPolicy (cluster-wide)
+- Calico Typha for large clusters
+
+### When to Use Cilium + Istio (cni_type=2, Default)
+
+✅ **Best For:**
+- Advanced traffic management (canary, A/B testing)
+- Service mesh capabilities (mTLS, retries, circuit breaking)
+- Enhanced observability (distributed tracing, service graphs)
+- L7 network policies (HTTP method/path filtering)
+- Modern eBPF-based networking for performance
+
+**Features:**
+- eBPF datapath (lower CPU, higher throughput)
+- Istio service mesh integration
+- Hubble network observability
+- L7-aware NetworkPolicy
+- mTLS encryption between services
+- Distributed tracing (Jaeger)
+- Service graph visualization (Kiali)
+
+**Resource Requirements:**
+- ~500MB additional memory (Cilium + Istio)
+- ~0.5 CPU cores (istiod + ingress gateway)
+
+### Switching CNIs
+
+⚠️ **CNI switching requires cluster recreation** (not in-place migration):
+
+```bash
+# Change cni_type in terraform.tfvars
+cni_type = 1  # or 2
+
+# Destroy and recreate
+terraform destroy
+terraform apply
+```
+
+---
+
+## Configuration Variables
+
+### Required Variables
+
+| Variable | Type | Description | Example |
+|----------|------|-------------|----------|
+| `resource_group_name` | string | Azure resource group | `"rg-k8s-prod"` |
+| `location` | string | Azure region | `"eastus"` |
+| `admin_username` | string | VM admin username | `"azureuser"` |
+| `ssh_public_key_path` | string | Path to SSH public key | `"~/.ssh/id_rsa.pub"` |
+
+### Optional Variables (with defaults)
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `cni_type` | number | `2` | CNI choice: 1=Calico, 2=Cilium+Istio |
+| `worker_node_count` | number | `3` | Number of worker nodes |
+| `vm_size` | string | `"Standard_D2s_v3"` | Azure VM SKU |
+| `vnet_address_prefix` | string | `"10.0.0.0/16"` | VNet CIDR |
+| `k8s_subnet_prefix` | string | `"10.0.1.0/24"` | Kubernetes subnet CIDR |
+| `bastion_subnet_prefix` | string | `"10.0.2.0/26"` | Bastion subnet CIDR |
+| `os_disk_size_gb` | number | `30` | OS disk size |
+
+### VM Sizing Recommendations
+
+| Use Case | VM Size | vCPU | Memory | Cost/Month (East US) |
+|----------|---------|------|--------|----------------------|
+| **Development** | Standard_B2s | 2 | 4 GB | ~$30 |
+| **Testing** | Standard_D2s_v3 | 2 | 8 GB | ~$70 |
+| **Production** | Standard_D4s_v3 | 4 | 16 GB | ~$140 |
+| **High Performance** | Standard_D8s_v3 | 8 | 32 GB | ~$280 |
 
 ## 🔧 Post-Deployment
 

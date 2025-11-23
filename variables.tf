@@ -56,12 +56,6 @@ variable "tags" {
   default     = {}
 }
 
-variable "enable_arc" {
-  description = "Enable Azure Arc onboarding after cluster deployment"
-  type        = bool
-  default     = true
-}
-
 variable "cni_type" {
   description = "CNI type to install: 1 = Calico, 2 = Cilium + Istio"
   type        = number
