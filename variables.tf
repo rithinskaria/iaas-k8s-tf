@@ -61,3 +61,13 @@ variable "enable_arc" {
   type        = bool
   default     = true
 }
+
+variable "cni_type" {
+  description = "CNI type to install: 1 = Calico, 2 = Cilium + Istio"
+  type        = number
+  default     = 2
+  validation {
+    condition     = contains([1, 2], var.cni_type)
+    error_message = "CNI type must be 1 (Calico) or 2 (Cilium + Istio)."
+  }
+}
