@@ -1,5 +1,6 @@
 #!/bin/bash
 CONTROL_PLANE_IP=$(hostname -I | awk '{print $1}')
+CNI_TYPE=${CNI_TYPE}
 
 # Disable swap
 swapoff -a
@@ -90,11 +91,13 @@ mkdir -p /home/azureuser/.kube
 cp -i /etc/kubernetes/admin.conf /home/azureuser/.kube/config
 chown azureuser:azureuser /home/azureuser/.kube/config
 
-echo "=== Installing Calico CNI ==="
-kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.28.0/manifests/tigera-operator.yaml
-sleep 10
+# Install CNI based on CNI_TYPE variable
+if [ "$CNI_TYPE" = "1" ]; then
+  echo "=== Installing Calico CNI ==="
+  kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.28.0/manifests/tigera-operator.yaml
+  sleep 10
 
-cat <<EOFCALICO | kubectl apply -f -
+  cat <<EOFCALICO | kubectl apply -f -
 apiVersion: operator.tigera.io/v1
 kind: Installation
 metadata:
@@ -115,9 +118,80 @@ metadata:
 spec: {}
 EOFCALICO
 
-kubectl wait --for=condition=ready pod -l k8s-app=calico-node -n calico-system --timeout=300s || echo "Calico not ready yet"
+  kubectl wait --for=condition=ready pod -l k8s-app=calico-node -n calico-system --timeout=300s || echo "Calico not ready yet"
+  kubectl wait --for=condition=ready pod -l k8s-app=kube-dns -n kube-system --timeout=300s || echo "CoreDNS not ready yet"
 
-kubectl wait --for=condition=ready pod -l k8s-app=kube-dns -n kube-system --timeout=300s || echo "CoreDNS not ready yet"
+else
+  echo "=== Installing Helm ==="
+  if ! command -v helm &> /dev/null; then
+    curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+  else
+    echo "Helm already installed"
+  fi
+
+  echo "=== Installing Cilium CNI via Helm ==="
+  helm repo add cilium https://helm.cilium.io/
+  helm repo update
+  helm install cilium cilium/cilium --version 1.16.5 \
+    --namespace kube-system \
+    --set ipam.mode=kubernetes \
+    --set routingMode=tunnel \
+    --set tunnelProtocol=vxlan \
+    --set ipv4NativeRoutingCIDR=10.244.0.0/16
+
+  # Wait for Cilium to be ready
+  kubectl wait --for=condition=ready pod -l k8s-app=cilium -n kube-system --timeout=300s || echo "Cilium not ready yet"
+  kubectl wait --for=condition=ready pod -l k8s-app=kube-dns -n kube-system --timeout=300s || echo "CoreDNS not ready yet"
+
+  echo "=== Installing Istio Service Mesh ==="
+  # Download istioctl
+  curl -L https://istio.io/downloadIstio | ISTIO_VERSION=1.28.0 sh -
+  cd istio-1.28.0
+  cp bin/istioctl /usr/local/bin/
+  cd ..
+
+  # Install Istio with proper placement strategy
+  cat <<EOF | istioctl install -y -f -
+apiVersion: install.istio.io/v1alpha1
+kind: IstioOperator
+metadata:
+  name: istio-controlplane
+spec:
+  profile: default
+  components:
+    pilot:
+      k8s:
+        # Istiod runs on control plane
+        tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+        nodeSelector:
+          node-role.kubernetes.io/control-plane: ""
+    ingressGateways:
+    - name: istio-ingressgateway
+      enabled: true
+      k8s:
+        # Start with 0 replicas, scale to 3 after workers join
+        replicaCount: 0
+        # Require worker nodes - cannot run on master
+        affinity:
+          nodeAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              nodeSelectorTerms:
+              - matchExpressions:
+                - key: node-role.kubernetes.io/control-plane
+                  operator: DoesNotExist
+        service:
+          type: LoadBalancer
+EOF
+
+  # Wait for Istio control plane to be ready
+  kubectl wait --for=condition=ready pod -l app=istiod -n istio-system --timeout=300s || echo "Istiod not ready yet"
+  
+  echo "✓ Istio installed - ingress gateway will deploy when workers join (currently 0 replicas)"
+  echo "   To scale after workers join: kubectl scale deployment istio-ingressgateway -n istio-system --replicas=3"
+fi
 
 cat <<'EOFCOREDNS' | kubectl apply -f -
 apiVersion: v1
@@ -445,23 +519,21 @@ sleep 20
 echo "=== Storing join command in Azure Key Vault ==="
 az keyvault secret set --vault-name "${KEY_VAULT_NAME}" --name "kubeadm-join-command" --value "$JOIN_COMMAND"
 
-# Wait for cluster to stabilize before Arc onboarding
-echo "=== Waiting for cluster components to stabilize ==="
-sleep 60
+echo "=== Setting up automated join token refresh ==="
+cat > /usr/local/bin/refresh-join-token.sh <<EOFREFRESH
+#!/bin/bash
+export KUBECONFIG=/etc/kubernetes/admin.conf
+JOIN_COMMAND=\$(kubeadm token create --print-join-command)
+az login --identity
+az keyvault secret set --vault-name "${KEY_VAULT_NAME}" --name "kubeadm-join-command" --value "\$JOIN_COMMAND"
+echo "\$(date): Join token refreshed in Key Vault" >> /var/log/join-token-refresh.log
+EOFREFRESH
 
-echo "=== Azure Arc onboarding ==="
-az extension add --name connectedk8s --yes
-az extension add --name k8s-extension --yes
+chmod +x /usr/local/bin/refresh-join-token.sh
 
-# Generate unique correlation ID
-CORRELATION_ID=$(cat /proc/sys/kernel/random/uuid)
-echo "Using correlation ID: $CORRELATION_ID"
+(crontab -l 2>/dev/null; echo "0 */23 * * * /usr/local/bin/refresh-join-token.sh") | crontab -
 
-az connectedk8s connect \
-  --name "${ARC_CLUSTER_NAME}" \
-  --resource-group "${RESOURCE_GROUP_NAME}" \
-  --location "${LOCATION}" \
-  --correlation-id "$CORRELATION_ID" \
-  --tags "environment=dev" || echo "⚠ Arc onboarding completed with warnings (Custom Location warnings can be ignored)"
+echo "Join token will be automatically refreshed every 23 hours"
+echo "Logs available at /var/log/join-token-refresh.log"
 
 echo "=== Master setup complete ==="

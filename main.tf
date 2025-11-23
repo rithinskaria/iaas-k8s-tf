@@ -23,6 +23,7 @@ locals {
     SUBNET_NAME         = var.k8s_subnet_name
     NSG_NAME            = "nsg-k8s-subnet"
     MI_CLIENT_ID        = module.k8s_identity.client_id
+    CNI_TYPE            = var.cni_type
   })
 
   worker_init_script = templatefile("${path.module}/scripts/worker-init.sh", {
