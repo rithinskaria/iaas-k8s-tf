@@ -519,23 +519,21 @@ sleep 20
 echo "=== Storing join command in Azure Key Vault ==="
 az keyvault secret set --vault-name "${KEY_VAULT_NAME}" --name "kubeadm-join-command" --value "$JOIN_COMMAND"
 
-# Wait for cluster to stabilize before Arc onboarding
-echo "=== Waiting for cluster components to stabilize ==="
-sleep 60
+echo "=== Setting up automated join token refresh ==="
+cat > /usr/local/bin/refresh-join-token.sh <<EOFREFRESH
+#!/bin/bash
+export KUBECONFIG=/etc/kubernetes/admin.conf
+JOIN_COMMAND=\$(kubeadm token create --print-join-command)
+az login --identity
+az keyvault secret set --vault-name "${KEY_VAULT_NAME}" --name "kubeadm-join-command" --value "\$JOIN_COMMAND"
+echo "\$(date): Join token refreshed in Key Vault" >> /var/log/join-token-refresh.log
+EOFREFRESH
 
-echo "=== Azure Arc onboarding ==="
-az extension add --name connectedk8s --yes
-az extension add --name k8s-extension --yes
+chmod +x /usr/local/bin/refresh-join-token.sh
 
-# Generate unique correlation ID
-CORRELATION_ID=$(cat /proc/sys/kernel/random/uuid)
-echo "Using correlation ID: $CORRELATION_ID"
+(crontab -l 2>/dev/null; echo "0 */23 * * * /usr/local/bin/refresh-join-token.sh") | crontab -
 
-az connectedk8s connect \
-  --name "${ARC_CLUSTER_NAME}" \
-  --resource-group "${RESOURCE_GROUP_NAME}" \
-  --location "${LOCATION}" \
-  --correlation-id "$CORRELATION_ID" \
-  --tags "environment=dev" || echo "⚠ Arc onboarding completed with warnings"
+echo "Join token will be automatically refreshed every 23 hours"
+echo "Logs available at /var/log/join-token-refresh.log"
 
 echo "=== Master setup complete ==="
