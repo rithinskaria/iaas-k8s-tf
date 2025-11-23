@@ -90,34 +90,84 @@ mkdir -p /home/azureuser/.kube
 cp -i /etc/kubernetes/admin.conf /home/azureuser/.kube/config
 chown azureuser:azureuser /home/azureuser/.kube/config
 
-echo "=== Installing Calico CNI ==="
-kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.28.0/manifests/tigera-operator.yaml
-sleep 10
+echo "=== Installing Helm ==="
+if ! command -v helm &> /dev/null; then
+  curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+else
+  echo "Helm already installed"
+fi
 
-cat <<EOFCALICO | kubectl apply -f -
-apiVersion: operator.tigera.io/v1
-kind: Installation
-metadata:
-  name: default
-spec:
-  calicoNetwork:
-    ipPools:
-    - blockSize: 26
-      cidr: 10.244.0.0/16
-      encapsulation: VXLAN
-      natOutgoing: Enabled
-      nodeSelector: all()
----
-apiVersion: operator.tigera.io/v1
-kind: APIServer
-metadata:
-  name: default
-spec: {}
-EOFCALICO
+echo "=== Installing Cilium CNI via Helm ==="
+helm repo add cilium https://helm.cilium.io/
+helm repo update
+helm install cilium cilium/cilium --version 1.16.5 \
+  --namespace kube-system \
+  --set ipam.mode=kubernetes \
+  --set routingMode=tunnel \
+  --set tunnelProtocol=vxlan \
+  --set ipv4NativeRoutingCIDR=10.244.0.0/16
 
-kubectl wait --for=condition=ready pod -l k8s-app=calico-node -n calico-system --timeout=300s || echo "Calico not ready yet"
+# Wait for Cilium to be ready
+kubectl wait --for=condition=ready pod -l k8s-app=cilium -n kube-system --timeout=300s || echo "Cilium not ready yet"
 
+# Wait for CoreDNS
 kubectl wait --for=condition=ready pod -l k8s-app=kube-dns -n kube-system --timeout=300s || echo "CoreDNS not ready yet"
+
+echo "=== Installing Istio Service Mesh ==="
+# Download istioctl
+curl -L https://istio.io/downloadIstio | ISTIO_VERSION=1.28.0 sh -
+cd istio-1.28.0
+cp bin/istioctl /usr/local/bin/
+cd ..
+
+# Install Istio with proper placement strategy
+cat <<EOF | istioctl install -y -f -
+apiVersion: install.istio.io/v1alpha1
+kind: IstioOperator
+metadata:
+  name: istio-controlplane
+spec:
+  profile: default
+  components:
+    pilot:
+      k8s:
+        # Istiod runs on control plane
+        tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+        nodeSelector:
+          node-role.kubernetes.io/control-plane: ""
+    ingressGateways:
+    - name: istio-ingressgateway
+      enabled: true
+      k8s:
+        # Multiple replicas for HA
+        replicaCount: 3
+        # Ingress gateway runs on workers only - will wait for workers to join
+        affinity:
+          nodeAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              nodeSelectorTerms:
+              - matchExpressions:
+                - key: node-role.kubernetes.io/control-plane
+                  operator: DoesNotExist
+          podAntiAffinity:
+            preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: istio-ingressgateway
+                topologyKey: kubernetes.io/hostname
+        # Use ClusterIP instead of LoadBalancer to avoid port conflicts
+        service:
+          type: ClusterIP
+EOF
+
+# Wait for Istio to be ready
+kubectl wait --for=condition=ready pod -l app=istiod -n istio-system --timeout=300s || echo "Istiod not ready yet"
+kubectl wait --for=condition=ready pod -l app=istio-ingressgateway -n istio-system --timeout=300s || echo "Istio ingress not ready yet"
 
 cat <<'EOFCOREDNS' | kubectl apply -f -
 apiVersion: v1
