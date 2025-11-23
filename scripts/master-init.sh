@@ -172,33 +172,25 @@ spec:
     - name: istio-ingressgateway
       enabled: true
       k8s:
-        # Start with 1 replica on master, can scale to 3 when workers join
-        replicaCount: 1
-        # Tolerate master but prefer workers
-        tolerations:
-        - key: node-role.kubernetes.io/control-plane
-          operator: Exists
-          effect: NoSchedule
+        # Start with 0 replicas, scale to 3 after workers join
+        replicaCount: 0
+        # Require worker nodes - cannot run on master
         affinity:
           nodeAffinity:
-            preferredDuringSchedulingIgnoredDuringExecution:
-            - weight: 100
-              preference:
-                matchExpressions:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              nodeSelectorTerms:
+              - matchExpressions:
                 - key: node-role.kubernetes.io/control-plane
                   operator: DoesNotExist
-        # Use ClusterIP instead of LoadBalancer to avoid port conflicts
         service:
-          type: ClusterIP
+          type: LoadBalancer
 EOF
 
   # Wait for Istio control plane to be ready
   kubectl wait --for=condition=ready pod -l app=istiod -n istio-system --timeout=300s || echo "Istiod not ready yet"
   
-  # Wait for at least one ingress gateway to be ready
-  kubectl wait --for=condition=ready pod -l app=istio-ingressgateway -n istio-system --timeout=300s || echo "Istio ingress not ready yet"
-  
-  echo "✓ Istio installed - ingress gateway running on master, will prefer workers when they join"
+  echo "✓ Istio installed - ingress gateway will deploy when workers join (currently 0 replicas)"
+  echo "   To scale after workers join: kubectl scale deployment istio-ingressgateway -n istio-system --replicas=3"
 fi
 
 cat <<'EOFCOREDNS' | kubectl apply -f -
