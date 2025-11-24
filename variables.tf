@@ -3,8 +3,10 @@ variable "location" { default     = "eastus" }
 variable "resource_group_name" {}
 variable "vnet_name" {}
 variable "vnet_address_prefix" {}
-variable "k8s_subnet_name" {}
-variable "k8s_subnet_prefix" {}
+variable "master_subnet_name" {}
+variable "master_subnet_prefix" {}
+variable "worker_subnet_name" {}
+variable "worker_subnet_prefix" {}
 variable "bastion_subnet_prefix" {}
 variable "bastion_name" {}
 variable "bastion_sku_name" {

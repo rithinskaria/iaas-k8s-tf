@@ -20,8 +20,8 @@ locals {
     LOCATION            = var.location
     VM_TYPE             = local.vm_type
     VNET_NAME           = var.vnet_name
-    SUBNET_NAME         = var.k8s_subnet_name
-    NSG_NAME            = "nsg-k8s-subnet"
+    SUBNET_NAME         = var.master_subnet_name
+    NSG_NAME            = "nsg-k8s-master-subnet"
     MI_CLIENT_ID        = module.k8s_identity.client_id
     CNI_TYPE            = var.cni_type
   })
@@ -32,8 +32,8 @@ locals {
     LOCATION            = var.location
     VM_TYPE             = local.vm_type
     VNET_NAME           = var.vnet_name
-    SUBNET_NAME         = var.k8s_subnet_name
-    NSG_NAME            = "nsg-k8s-subnet"
+    SUBNET_NAME         = var.worker_subnet_name
+    NSG_NAME            = "nsg-k8s-worker-subnet"
     MI_CLIENT_ID        = module.k8s_identity.client_id
   })
 }
@@ -93,8 +93,12 @@ module "vnet" {
 
   subnets = [
     {
-      name           = var.k8s_subnet_name
-      address_prefix = var.k8s_subnet_prefix
+      name           = var.master_subnet_name
+      address_prefix = var.master_subnet_prefix
+    },
+    {
+      name           = var.worker_subnet_name
+      address_prefix = var.worker_subnet_prefix
     },
     {
       name           = "AzureBastionSubnet"
@@ -105,13 +109,27 @@ module "vnet" {
   depends_on = [module.resource_group]
 }
 
-module "k8s_nsg" {
+module "master_nsg" {
   source = "./modules/network_security_group"
 
-  name                   = "nsg-k8s-subnet"
+  name                   = "nsg-k8s-master-subnet"
   location               = var.location
   resource_group_name    = module.resource_group.name
-  subnet_id              = module.vnet.subnet_ids[var.k8s_subnet_name]
+  subnet_id              = module.vnet.subnet_ids[var.master_subnet_name]
+  vnet_address_prefix    = var.vnet_address_prefix
+  allow_ssh_from_prefix  = "VirtualNetwork"
+  tags                   = var.tags
+
+  depends_on = [module.vnet]
+}
+
+module "worker_nsg" {
+  source = "./modules/network_security_group"
+
+  name                   = "nsg-k8s-worker-subnet"
+  location               = var.location
+  resource_group_name    = module.resource_group.name
+  subnet_id              = module.vnet.subnet_ids[var.worker_subnet_name]
   vnet_address_prefix    = var.vnet_address_prefix
   allow_ssh_from_prefix  = "VirtualNetwork"
   tags                   = var.tags
@@ -152,7 +170,7 @@ module "master_node" {
 
   location            = var.location
   resource_group_name = module.resource_group.name
-  subnet_id           = module.vnet.subnet_ids[var.k8s_subnet_name]
+  subnet_id           = module.vnet.subnet_ids[var.master_subnet_name]
   tags                = var.tags
   admin_username      = var.admin_username
   ssh_public_key      = var.ssh_public_key
@@ -171,7 +189,7 @@ module "worker_vmss" {
 
   location            = var.location
   resource_group_name = module.resource_group.name
-  subnet_id           = module.vnet.subnet_ids[var.k8s_subnet_name]
+  subnet_id           = module.vnet.subnet_ids[var.worker_subnet_name]
   tags                = var.tags
   admin_username      = var.admin_username
   ssh_public_key      = var.ssh_public_key
