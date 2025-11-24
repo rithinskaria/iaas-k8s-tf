@@ -99,40 +99,60 @@ cd iaas-k8s-tf
 Create `terraform.tfvars`:
 
 ```hcl
-# Minimal configuration
-resource_group_name = "rg-k8s-prod"
-location            = "eastus"
-admin_username      = "azureuser"
-ssh_public_key_path = "~/.ssh/id_rsa.pub"
+# Required variables
+resource_group_name   = "rg-k8s-dev-cc-01"
+vnet_name             = "vnet-k8s-dev-cc-01"
+vnet_address_prefix   = "10.0.0.0/20"
+k8s_subnet_name       = "snet-k8s"
+k8s_subnet_prefix     = "10.0.0.0/21"
+bastion_subnet_prefix = "10.0.8.0/26"
+bastion_name          = "bastion-k8s-dev-cc-01"
+admin_username        = "azureuser"
+vm_size               = "Standard_D4ds_v5"
+ssh_public_key        = "ssh-rsa AAAAB3NzaC1yc2E... your-key-here"
 
-# CNI Selection (optional, defaults to Cilium + Istio)
+# Optional: CNI Selection (defaults to 2 = Cilium + Istio)
 cni_type = 2  # 1 = Calico, 2 = Cilium + Istio
 
-# Worker count (optional, default = 3)
+# Optional: Worker count (defaults to 2)
 worker_node_count = 3
 
-# VM sizing (optional, defaults to Standard_D2s_v3)
-vm_size = "Standard_D2s_v3"
+# Optional: Additional settings with defaults
+location            = "eastus"              # default: eastus
+bastion_sku_name    = "Standard"           # default: Standard
+key_vault_base_name = "kv-k8s-dev-cc"      # default: kv-k8s-dev-cc
+arc_cluster_name    = "arc-k8s-dev-cc-01"  # default: arc-k8s-cluster
+os_disk_size_gb     = 128                  # default: 128
+
+tags = {
+  environment = "dev"
+  project     = "containers-infra"
+}
 ```
 
-**Advanced Configuration Example:**
+**Production Configuration Example:**
 
 ```hcl
 resource_group_name   = "rg-k8s-prod"
-location              = "eastus"
-vnet_address_prefix   = "10.0.0.0/16"
-k8s_subnet_prefix     = "10.0.1.0/24"
-bastion_subnet_prefix = "10.0.2.0/26"
+vnet_name             = "vnet-k8s-prod"
+vnet_address_prefix   = "10.1.0.0/16"
+k8s_subnet_name       = "snet-k8s-nodes"
+k8s_subnet_prefix     = "10.1.0.0/21"
+bastion_subnet_prefix = "10.1.8.0/26"
+bastion_name          = "bastion-k8s-prod"
 admin_username        = "azureuser"
-ssh_public_key_path   = "~/.ssh/k8s-azure-key.pub"
-cni_type              = 2
-worker_node_count     = 5
-vm_size               = "Standard_D4s_v3"
+vm_size               = "Standard_D8ds_v5"  # 8 vCPU, 32 GB RAM
+ssh_public_key        = "ssh-rsa AAAAB3NzaC1yc2E... your-key-here"
+location              = "eastus"
+cni_type              = 2  # Cilium + Istio for advanced features
+worker_node_count     = 5  # 5 worker nodes
+os_disk_size_gb       = 256
 
 tags = {
   environment = "production"
   project     = "k8s-infrastructure"
   owner       = "platform-team"
+  costcenter  = "engineering"
 }
 ```
 
@@ -300,20 +320,23 @@ iaas-k8s-tf/
 
 ## Cost Estimation
 
-**Monthly Azure costs** (default configuration, East US region):
+**Monthly Azure costs** (default configuration with `cni_type=2`, East US region):
 
 | Resource | SKU | Count | Monthly Cost |
 |----------|-----|-------|---------------|
-| Master VM | Standard_D2s_v3 | 1 | ~$70 |
-| Worker VMs | Standard_D2s_v3 | 3 | ~$210 |
-| Bastion VM | Standard_B1s | 1 | ~$8 |
-| Storage (Premium SSD) | 30GB | 4 disks | ~$25 |
-| VNet, NSG | Standard | - | ~$5 |
-| Public IPs | Standard | 2 | ~$7 |
+| Master VM | Standard_D4ds_v5 | 1 | ~$175 |
+| Worker VMs | Standard_D4ds_v5 | 2 (default) | ~$350 |
+| Bastion VM | Standard_B2s | 1 | ~$30 |
+| Storage (Premium SSD) | 128GB OS disks | 3 total | ~$60 |
+| Azure Bastion | Standard SKU | 1 | ~$145 |
+| VNet, NSG | Standard | - | ~$0 (no charge) |
+| Public IPs | Standard | 1 | ~$4 |
 | Key Vault | Standard | 1 | ~$0.50 |
-| Load Balancer | Standard | 1 | ~$18 |
+| Load Balancer | Standard (auto-created) | 1 | ~$18 |
 | Bandwidth (outbound) | Variable | - | ~$5-20 |
-| **Base Infrastructure** | | | **~$348/month** |
+| **Base Infrastructure** | | | **~$787-802/month** |
+
+**With 3 workers** (as shown in examples): **~$962-977/month**
 
 **Optional Costs:**
 
@@ -437,35 +460,48 @@ terraform apply
 
 ## Configuration Variables
 
-### Required Variables
+### Required Variables (no defaults)
 
 | Variable | Type | Description | Example |
 |----------|------|-------------|----------|
-| `resource_group_name` | string | Azure resource group | `"rg-k8s-prod"` |
-| `location` | string | Azure region | `"eastus"` |
+| `resource_group_name` | string | Azure resource group name | `"rg-k8s-prod"` |
+| `vnet_name` | string | Virtual network name | `"vnet-k8s-prod"` |
+| `vnet_address_prefix` | string | VNet CIDR block | `"10.0.0.0/20"` |
+| `k8s_subnet_name` | string | Kubernetes subnet name | `"snet-k8s"` |
+| `k8s_subnet_prefix` | string | Kubernetes subnet CIDR | `"10.0.0.0/21"` |
+| `bastion_subnet_prefix` | string | Bastion subnet CIDR | `"10.0.8.0/26"` |
+| `bastion_name` | string | Bastion host name | `"bastion-k8s-prod"` |
 | `admin_username` | string | VM admin username | `"azureuser"` |
-| `ssh_public_key_path` | string | Path to SSH public key | `"~/.ssh/id_rsa.pub"` |
+| `vm_size` | string | Azure VM SKU | `"Standard_D4ds_v5"` |
+| `ssh_public_key` | string (sensitive) | SSH public key content | `"ssh-rsa AAAAB3..."` |
 
 ### Optional Variables (with defaults)
 
-| Variable | Type | Default | Description |
-|----------|------|---------|-------------|
-| `cni_type` | number | `2` | CNI choice: 1=Calico, 2=Cilium+Istio |
-| `worker_node_count` | number | `3` | Number of worker nodes |
-| `vm_size` | string | `"Standard_D2s_v3"` | Azure VM SKU |
-| `vnet_address_prefix` | string | `"10.0.0.0/16"` | VNet CIDR |
-| `k8s_subnet_prefix` | string | `"10.0.1.0/24"` | Kubernetes subnet CIDR |
-| `bastion_subnet_prefix` | string | `"10.0.2.0/26"` | Bastion subnet CIDR |
-| `os_disk_size_gb` | number | `30` | OS disk size |
+| Variable | Type | Default | Validation | Description |
+|----------|------|---------|------------|-------------|
+| `location` | string | `"eastus"` | - | Azure region |
+| `cni_type` | number | `2` | 1 or 2 | CNI choice: 1=Calico, 2=Cilium+Istio |
+| `worker_node_count` | number | `2` | 1-10 | Number of worker nodes in VMSS |
+| `bastion_sku_name` | string | `"Standard"` | Basic/Standard/Premium | Azure Bastion SKU |
+| `key_vault_base_name` | string | `"kv-k8s-dev-cc"` | - | Base name for Key Vault (random suffix added) |
+| `arc_cluster_name` | string | `"arc-k8s-cluster"` | - | Name for Arc-enabled cluster registration |
+| `os_disk_size_gb` | number | `128` | 30-2048 | OS disk size in GB |
+| `tags` | map(string) | `{}` | - | Tags to apply to all resources |
 
 ### VM Sizing Recommendations
 
-| Use Case | VM Size | vCPU | Memory | Cost/Month (East US) |
+| Use Case | VM Size | vCPU | Memory | Cost/Month (East US)* |
 |----------|---------|------|--------|----------------------|
-| **Development** | Standard_B2s | 2 | 4 GB | ~$30 |
-| **Testing** | Standard_D2s_v3 | 2 | 8 GB | ~$70 |
-| **Production** | Standard_D4s_v3 | 4 | 16 GB | ~$140 |
-| **High Performance** | Standard_D8s_v3 | 8 | 32 GB | ~$280 |
+| **Development** | Standard_D2ds_v5 | 2 | 8 GB | ~$88 |
+| **Testing/Default** | Standard_D4ds_v5 | 4 | 16 GB | ~$175 |
+| **Production** | Standard_D8ds_v5 | 8 | 32 GB | ~$350 |
+| **High Performance** | Standard_D16ds_v5 | 16 | 64 GB | ~$700 |
+
+*Prices are approximate pay-as-you-go rates. Use Azure Pricing Calculator for exact costs.
+
+**CNI Resource Impact:**
+- **Calico (cni_type=1)**: ~200MB memory per node
+- **Cilium + Istio (cni_type=2)**: ~500MB memory per node (Cilium) + 1GB on master (Istiod)
 
 ---
 
