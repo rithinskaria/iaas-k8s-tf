@@ -52,12 +52,14 @@ output "master_node" {
   }
 }
 
-output "worker_vmss" {
-  description = "Worker VMSS details"
+output "worker_node_pools" {
+  description = "Worker node pools details"
   value = {
-    name           = module.worker_vmss.name
-    id             = module.worker_vmss.id
-    instance_count = module.worker_vmss.instance_count
+    for pool_name, pool in module.worker_node_pools : pool_name => {
+      name           = pool.name
+      id             = pool.id
+      instance_count = pool.instance_count
+    }
   }
 }
 

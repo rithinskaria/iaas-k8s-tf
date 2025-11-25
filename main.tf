@@ -9,32 +9,26 @@ resource "random_string" "kv_suffix" {
 locals {
   key_vault_name = "${var.key_vault_base_name}-${random_string.kv_suffix.result}"
   
-  # Determine VM type based on worker count
-  vm_type = var.worker_node_count > 0 ? "vmss" : "standard"
+  # Determine VM type based on whether node pools exist
+  vm_type = length(var.node_pools) > 0 ? "vmss" : "standard"
+  
+  # Load taint manager manifest
+  taint_manager_manifest = file("${path.module}/manifests/node-pool-taint-manager.yaml")
   
   # Load initialization scripts from external files
   master_init_script = templatefile("${path.module}/scripts/master-init.sh", {
-    KEY_VAULT_NAME      = local.key_vault_name
-    RESOURCE_GROUP_NAME = var.resource_group_name
-    ARC_CLUSTER_NAME    = var.arc_cluster_name
-    LOCATION            = var.location
-    VM_TYPE             = local.vm_type
-    VNET_NAME           = var.vnet_name
-    SUBNET_NAME         = var.master_subnet_name
-    NSG_NAME            = "nsg-k8s-master-subnet"
-    MI_CLIENT_ID        = module.k8s_identity.client_id
-    CNI_TYPE            = var.cni_type
-  })
-
-  worker_init_script = templatefile("${path.module}/scripts/worker-init.sh", {
-    KEY_VAULT_NAME      = local.key_vault_name
-    RESOURCE_GROUP_NAME = var.resource_group_name
-    LOCATION            = var.location
-    VM_TYPE             = local.vm_type
-    VNET_NAME           = var.vnet_name
-    SUBNET_NAME         = var.worker_subnet_name
-    NSG_NAME            = "nsg-k8s-worker-subnet"
-    MI_CLIENT_ID        = module.k8s_identity.client_id
+    KEY_VAULT_NAME         = local.key_vault_name
+    RESOURCE_GROUP_NAME    = var.resource_group_name
+    ARC_CLUSTER_NAME       = var.arc_cluster_name
+    LOCATION               = var.location
+    VM_TYPE                = local.vm_type
+    VNET_NAME              = var.vnet_name
+    SUBNET_NAME            = var.master_subnet_name
+    NSG_NAME               = "nsg-k8s-master-subnet"
+    MI_CLIENT_ID           = module.k8s_identity.client_id
+    CNI_TYPE               = var.cni_type
+    NODE_POOLS_CONFIG      = jsonencode(var.node_pools)
+    TAINT_MANAGER_MANIFEST = local.taint_manager_manifest
   })
 }
 
@@ -91,20 +85,24 @@ module "vnet" {
   address_prefix      = var.vnet_address_prefix
   tags                = var.tags
 
-  subnets = [
-    {
-      name           = var.master_subnet_name
-      address_prefix = var.master_subnet_prefix
-    },
-    {
-      name           = var.worker_subnet_name
-      address_prefix = var.worker_subnet_prefix
-    },
-    {
-      name           = "AzureBastionSubnet"
-      address_prefix = var.bastion_subnet_prefix
-    }
-  ]
+  subnets = concat(
+    [
+      {
+        name           = var.master_subnet_name
+        address_prefix = var.master_subnet_prefix
+      },
+      {
+        name           = "AzureBastionSubnet"
+        address_prefix = var.bastion_subnet_prefix
+      }
+    ],
+    [
+      for pool_name, pool_config in var.node_pools : {
+        name           = "snet-pool-${pool_name}"
+        address_prefix = pool_config.subnet_prefix
+      }
+    ]
+  )
 
   depends_on = [module.resource_group]
 }
@@ -123,16 +121,18 @@ module "master_nsg" {
   depends_on = [module.vnet]
 }
 
-module "worker_nsg" {
-  source = "./modules/network_security_group"
+# Create NSG for each node pool subnet
+module "pool_nsgs" {
+  source   = "./modules/network_security_group"
+  for_each = var.node_pools
 
-  name                   = "nsg-k8s-worker-subnet"
+  name                   = "${each.value.nsg_name}-${each.key}"
   location               = var.location
   resource_group_name    = module.resource_group.name
-  subnet_id              = module.vnet.subnet_ids[var.worker_subnet_name]
+  subnet_id              = module.vnet.subnet_ids["snet-pool-${each.key}"]
   vnet_address_prefix    = var.vnet_address_prefix
   allow_ssh_from_prefix  = "VirtualNetwork"
-  tags                   = var.tags
+  tags                   = merge(var.tags, { nodepool = each.key })
 
   depends_on = [module.vnet]
 }
@@ -184,24 +184,40 @@ module "master_node" {
 }
 
 
-module "worker_vmss" {
-  source = "./modules/worker_vmss"
+module "worker_node_pools" {
+  source   = "./modules/worker_vmss"
+  for_each = var.node_pools
 
   location            = var.location
   resource_group_name = module.resource_group.name
-  subnet_id           = module.vnet.subnet_ids[var.worker_subnet_name]
-  tags                = var.tags
+  subnet_id           = module.vnet.subnet_ids["snet-pool-${each.key}"]
+  tags                = merge(var.tags, { nodepool = each.key })
   admin_username      = var.admin_username
   ssh_public_key      = var.ssh_public_key
-  vm_size             = var.vm_size
-  vmss_name           = "vmss-k8s-workers"
-  instance_count      = var.worker_node_count
+  vm_size             = each.value.vm_size
+  vmss_name           = "vmss-k8s-${each.key}"
+  instance_count      = each.value.node_count
   managed_identity_id = module.k8s_identity.identity_id
-  os_disk_size_gb     = var.os_disk_size_gb
-  init_script         = local.worker_init_script
+  os_disk_size_gb     = each.value.os_disk_size_gb
+  init_script         = templatefile("${path.module}/scripts/worker-init.sh", {
+    KEY_VAULT_NAME      = local.key_vault_name
+    RESOURCE_GROUP_NAME = var.resource_group_name
+    LOCATION            = var.location
+    VM_TYPE             = local.vm_type
+    VNET_NAME           = var.vnet_name
+    SUBNET_NAME         = "snet-pool-${each.key}"
+    NSG_NAME            = each.value.nsg_name
+    MI_CLIENT_ID        = module.k8s_identity.client_id
+    POOL_NAME           = each.key
+    NODE_TAINTS         = jsonencode(each.value.taints)
+    NODE_LABELS         = jsonencode(merge(each.value.labels, { "nodepool" = each.key }))
+  })
 
   depends_on = [
     module.key_vault,
     module.master_node
   ]
 }
+
+# Node pool taint manager is now deployed directly in master-init.sh
+# This ensures it's available from the start and handles autoscaling automatically

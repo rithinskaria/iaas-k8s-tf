@@ -536,4 +536,20 @@ chmod +x /usr/local/bin/refresh-join-token.sh
 echo "Join token will be automatically refreshed every 23 hours"
 echo "Logs available at /var/log/join-token-refresh.log"
 
+echo "=== Deploying Node Pool Taint Manager ==="
+sleep 40
+
+# Install jq if not present
+if ! command -v jq &> /dev/null; then
+  echo "Installing jq..."
+  apt-get update -qq && apt-get install -y jq
+fi
+
+# Deploy the taint manager manifest with node pools configuration
+cat <<'EOFTAINTMANAGER' | sed 's|$${NODE_POOLS_CONFIG}|${NODE_POOLS_CONFIG}|g' | kubectl apply -f -
+${TAINT_MANAGER_MANIFEST}
+EOFTAINTMANAGER
+
+echo "✓ Node Pool Taint Manager deployed"
+
 echo "=== Master setup complete ==="

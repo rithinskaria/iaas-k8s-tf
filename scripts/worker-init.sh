@@ -163,6 +163,51 @@ if [ -n "$JOIN_COMMAND" ]; then
     systemctl restart kubelet
     
     echo "✓ Kubelet restarted successfully"
+    
+    # Apply node labels and taints
+    echo "=== Applying node pool configuration ==="
+    
+    # Install jq if not present
+    if ! command -v jq &> /dev/null; then
+      echo "Installing jq..."
+      apt-get install -y jq
+    fi
+    
+    # Get node name (VMSS instances have specific naming)
+    HOSTNAME=$(hostname)
+    echo "Node hostname: $HOSTNAME"
+    
+    # Wait for node to be fully registered
+    echo "Waiting for node to be fully registered..."
+    sleep 30
+    
+    # Apply labels if provided
+    NODE_LABELS='${NODE_LABELS}'
+    if [ "$NODE_LABELS" != "null" ] && [ "$NODE_LABELS" != "{}" ] && [ -n "$NODE_LABELS" ]; then
+      echo "Applying labels: $NODE_LABELS"
+      
+      # Parse and apply each label
+      for label in $(echo "$NODE_LABELS" | jq -r 'to_entries[] | "\(.key)=\(.value)"'); do
+        echo "Applying label: $label"
+        max_attempts=5
+        attempt=1
+        while [ $attempt -le $max_attempts ]; do
+          if kubectl --kubeconfig=/etc/kubernetes/kubelet.conf label node "$HOSTNAME" "$label" --overwrite; then
+            echo "✓ Label applied: $label"
+            break
+          else
+            echo "⚠ Attempt $attempt/$max_attempts failed for label: $label"
+            sleep 10
+            attempt=$((attempt + 1))
+          fi
+        done
+      done
+    fi
+    
+    # Note: Taints are now managed by the CronJob taint-manager in kube-system namespace
+    # This ensures consistent taint application and supports autoscaling scenarios
+    
+    echo "✓ Node pool configuration applied"
   else
     echo "ERROR: Failed to join cluster"
     exit 1

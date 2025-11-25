@@ -1,0 +1,143 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: node-taint-manager
+  namespace: kube-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: node-taint-manager
+rules:
+- apiGroups: [""]
+  resources: ["nodes"]
+  verbs: ["get", "list", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: node-taint-manager
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: node-taint-manager
+subjects:
+- kind: ServiceAccount
+  name: node-taint-manager
+  namespace: kube-system
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: node-pool-config
+  namespace: kube-system
+data:
+  node-pools.json: |
+    ${NODE_POOLS_CONFIG}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: node-pool-taint-manager
+  namespace: kube-system
+spec:
+  schedule: "*/2 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 5
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: node-taint-manager
+          restartPolicy: OnFailure
+          containers:
+          - name: taint-manager
+            image: bitnami/kubectl:latest
+            command:
+            - /bin/bash
+            - -c
+            - |
+              #!/bin/bash
+              set -e
+              
+              echo "=== Node Pool Taint Manager ==="
+              echo "Running at: $$(date)"
+              
+              # Read configuration
+              NODE_POOLS=$$(cat /config/node-pools.json)
+              echo "Configuration loaded"
+              
+              # Process each pool
+              for pool_name in $$(echo "$$NODE_POOLS" | jq -r 'keys[]'); do
+                echo ""
+                echo "Processing pool: $$pool_name"
+                
+                # Get pool configuration
+                labels=$$(echo "$$NODE_POOLS" | jq -r ".[\"$$pool_name\"].labels")
+                taints=$$(echo "$$NODE_POOLS" | jq -r ".[\"$$pool_name\"].taints")
+                
+                # Check if nodes exist for this pool
+                node_count=$$(kubectl get nodes -l "nodepool=$$pool_name" --no-headers 2>/dev/null | wc -l | tr -d ' ')
+                
+                if [ "$$node_count" -eq "0" ]; then
+                  echo "  No nodes found for pool $$pool_name, skipping"
+                  continue
+                fi
+                
+                echo "  Found $$node_count nodes in pool $$pool_name"
+                
+                # Apply custom labels
+                if [ "$$labels" != "null" ] && [ "$$labels" != "{}" ]; then
+                  label_count=$$(echo "$$labels" | jq 'length')
+                  echo "  Applying $$label_count custom labels..."
+                  
+                  for key in $$(echo "$$labels" | jq -r 'keys[]'); do
+                    value=$$(echo "$$labels" | jq -r ".[\"$$key\"]")
+                    echo "    - $$key=$$value"
+                    if kubectl label nodes -l "nodepool=$$pool_name" "$$key=$$value" --overwrite; then
+                      echo "      ✓ Label applied"
+                    else
+                      echo "      ✗ Failed to apply label"
+                    fi
+                  done
+                fi
+                
+                # Apply taints
+                if [ "$$taints" != "null" ] && [ "$$taints" != "[]" ]; then
+                  taint_count=$$(echo "$$taints" | jq 'length')
+                  echo "  Applying $$taint_count taints..."
+                  
+                  for i in $$(seq 0 $$((taint_count - 1))); do
+                    taint_key=$$(echo "$$taints" | jq -r ".[$$i].key")
+                    taint_value=$$(echo "$$taints" | jq -r ".[$$i].value")
+                    taint_effect=$$(echo "$$taints" | jq -r ".[$$i].effect")
+                    taint_str="$${taint_key}=$${taint_value}:$${taint_effect}"
+                    
+                    echo "    - $$taint_str"
+                    
+                    # Remove existing taint with same key, then apply new one
+                    kubectl taint nodes -l "nodepool=$$pool_name" "$${taint_key}-" 2>/dev/null || true
+                    
+                    if kubectl taint nodes -l "nodepool=$$pool_name" "$$taint_str" 2>&1; then
+                      echo "      ✓ Taint applied"
+                    else
+                      echo "      ✗ Failed (may already exist)"
+                    fi
+                  done
+                else
+                  echo "  No taints to apply"
+                fi
+              done
+              
+              echo ""
+              echo "=== Node Pool Taint Manager Complete ==="
+              echo "Finished at: $$(date)"
+            volumeMounts:
+            - name: config
+              mountPath: /config
+          volumes:
+          - name: config
+            configMap:
+              name: node-pool-config
